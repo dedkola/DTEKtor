@@ -1,0 +1,15 @@
+services:
+  dtektor:
+    build: .
+    image: dtektor
+    ports:
+      - "3000:3000"
+    environment:
+      # Local file DB persisted in the ./data volume below.
+      DATABASE_URL: file:/app/data/dtektor.db
+      # Set in your shell/.env to protect the ingest endpoint.
+      INGEST_SECRET: ${INGEST_SECRET:-}
+      NODE_ENV: production
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
