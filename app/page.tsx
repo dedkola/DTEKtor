@@ -29,7 +29,6 @@ export default async function Home() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <RefreshButton label={L.refresh} />
-          <LangSwitch lang={lang} />
         </div>
       </header>
 
@@ -45,6 +44,10 @@ export default async function Home() {
             <GraphPanel key={`g-${col.street}/${col.building}`} col={col} L={L} />
           ))}
         </div>
+      </div>
+
+      <div className="mt-6 flex justify-start">
+        <LangSwitch lang={lang} />
       </div>
 
       <footer className="mt-10 text-center text-xs text-slate-400">{L.footer}</footer>
@@ -65,9 +68,7 @@ function ScheduleCard({ col, lang, L }: { col: DashboardColumn; lang: Lang; L: D
         </span>
         <div className="min-w-0">
           <h2 className="text-sm font-bold text-slate-900">{L.cardTitle}</h2>
-          <p className="truncate text-xs text-slate-500">
-            {address} · {L.network}
-          </p>
+          <p className="truncate text-xs text-slate-500">{address}</p>
         </div>
       </div>
 
@@ -96,11 +97,7 @@ function ScheduleCard({ col, lang, L }: { col: DashboardColumn; lang: Lang; L: D
               {L.checkedPrefix} {formatStamp(s.checkedAt, lang, L.noData)}
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-400">
-            {L.dtekDataPrefix}: {formatStamp(s.updated, lang, L.noData)} · {L.graphPrefix}:{" "}
-            {formatStamp(s.graphUpdated, lang, L.noData)}
-          </p>
-          <p className="mt-3 text-[11px] text-slate-400">{L.bookmarkNote}</p>
+
         </div>
       ) : null}
     </section>

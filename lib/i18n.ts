@@ -138,7 +138,7 @@ const ru: Dict = {
   todayShort: "СЕГОДНЯ",
   tomorrowShort: "ЗАВТРА",
   noOutagesToday: "сегодня отключений нет",
-  noOutagesTomorrow: "завтра отключений нет",
+  noOutagesTomorrow: "нет данных",
   upToDate: "АКТУАЛЬНО",
   checkedPrefix: "Проверено:",
   dtekDataPrefix: "Данные ДТЕК",
@@ -154,11 +154,12 @@ const ru: Dict = {
 const DICTS: Record<Lang, Dict> = { en, ru };
 
 export function normalizeLang(value: string | null | undefined): Lang {
-  return value === "ru" ? "ru" : "en";
+  // Russian is the default; English only when explicitly selected.
+  return value === "en" ? "en" : "ru";
 }
 
 export function t(lang: Lang): Dict {
   return DICTS[lang] ?? DICTS.en;
 }
 
-export const LANGS: Lang[] = ["en", "ru"];
+export const LANGS: Lang[] = ["ru", "en"];
