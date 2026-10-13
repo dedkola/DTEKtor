@@ -63,6 +63,7 @@ function ScheduleCard({ col, L }: { col: DashboardColumn; L: Dict }) {
         {s ? (
           <div className="space-y-3">
             <Row label={L.todayShort} windows={s.today.windows} empty={L.noOutagesToday} />
+            <div aria-hidden="true" className="border-t border-slate-100" />
             <Row
               label={L.tomorrowShort}
               windows={s.tomorrow.windows}
