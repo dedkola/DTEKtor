@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'latest' }}
   cancel-in-progress: true
 
 jobs:
@@ -87,10 +87,34 @@ jobs:
         if: always()
         run: docker compose down --volumes --remove-orphans
 
-  production:
-    name: Verify production deployment
+  release:
+    name: Check whether release is current
     needs: [code, docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      current: ${{ steps.head.outputs.current }}
+    steps:
+      - name: Compare this commit with main
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          current=$(gh api "repos/$REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [ "$current" = "$EXPECTED_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping superseded release $EXPECTED_SHA; main is $current." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  production:
+    name: Verify production deployment
+    needs: [release]
+    if: needs.release.outputs.current == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -99,9 +123,6 @@ jobs:
     environment:
       name: production
       url: ${{ vars.DTEKTOR_PUBLIC_URL || 'https://detektor.tkweb.dev' }}
-    concurrency:
-      group: production-verification
-      cancel-in-progress: true
     env:
       EXPECTED_SHA: ${{ github.sha }}
       DTEKTOR_URL: ${{ vars.DTEKTOR_PUBLIC_URL || 'https://detektor.tkweb.dev' }}

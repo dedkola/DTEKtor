@@ -43,6 +43,7 @@ Requires Docker Engine and Docker Compose.
 ```bash
 cp .env.example .env
 # Set a nonempty random INGEST_SECRET in .env before starting.
+export DTEKTOR_BUILD_SHA="$(git rev-parse HEAD)"
 docker compose up --build -d
 ```
 
@@ -61,6 +62,10 @@ docker compose down
 Before migrating an existing systemd deployment, back up its database and
 screenshots and stop the old web service and collector. Preserve the Compose
 project name when reusing existing volumes.
+
+Export `DTEKTOR_BUILD_SHA` from the checked-out source revision before every
+Compose build or management session. Compose requires it instead of silently
+producing an unidentified build.
 
 ## Configuration
 
@@ -102,6 +107,22 @@ Ensure its build command stamps the source revision:
 `DTEKTOR_BUILD_SHA="$REMOTE" npm run build`. After restart, run the verifier with
 `EXPECTED_SHA="$REMOTE" DTEKTOR_URL=http://127.0.0.1:3000` before marking a release
 successful. Docker builds accept the SHA via `--build-arg DTEKTOR_BUILD_SHA=...`.
+
+The maintained systemd deployment script is `scripts/deploy-systemd.sh`. Install
+it as `/home/ded/deploy.sh` for the existing user timer. It serializes builds,
+repairs unstamped builds even when the recorded Git revision is unchanged, stamps
+the source SHA at build time, and verifies the local service, public HTTPS,
+collection and screenshots before atomically recording deployment success.
+The default paths match the current server; `DTEKTOR_REPO`, `DTEKTOR_DEPLOY_STATE`,
+`DTEKTOR_DEPLOY_LOG`, `DTEKTOR_DEPLOY_KEY` and `DTEKTOR_PUBLIC_URL` override them.
+Install `scripts/systemd/dtektor.service.d/stop-timeout.conf` under
+`/etc/systemd/system/dtektor.service.d/` and run `sudo systemctl daemon-reload`
+to bound shutdown at 15 seconds when live event streams keep requests open.
+
+Main-branch CI runs use separate concurrency groups for each commit, so rerunning
+an older release cannot cancel verification for a newer one. A release preflight
+skips production verification when that commit has already been superseded on
+`main`.
 
 The default public URL is `https://detektor.tkweb.dev`. Repository variable
 `DTEKTOR_PUBLIC_URL` can override it. The manual

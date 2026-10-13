@@ -1,6 +1,9 @@
 services:
   dtektor:
-    build: .
+    build:
+      context: .
+      args:
+        DTEKTOR_BUILD_SHA: ${DTEKTOR_BUILD_SHA:?Set DTEKTOR_BUILD_SHA to the source commit before building}
     image: dtektor
     ports:
       - "${APP_PORT:-3000}:3000"
