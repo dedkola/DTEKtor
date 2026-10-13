@@ -1,11 +1,11 @@
 # DTEKtor
 
-**Per-address DTEK outage tracker.** A visitor enters their street and building
-once; DTEKtor then shows **only that address**: the outages still remaining
-today, tomorrow's outages, DTEK's own schedule-update stamp, and a 7-day
-history strip.
+**Single-address DTEK outage tracker.** The collector feeds exactly one address;
+every visitor opens the page and immediately sees **that address**: the outages
+still remaining today, tomorrow's outages, DTEK's own schedule-update stamp, and
+a 7-day history strip. There is **no setup step** — no address form, no login.
 
-- Multi-user, no accounts: identity is a cookie.
+- No accounts and no per-visitor setup: the page shows the collector-fed address.
 - Local file database *or* hosted Turso — one libSQL driver for both.
 - Light theme only (never dark). Responsive.
 - UI in **English and Russian** (toggle, remembered in a cookie).
@@ -15,13 +15,14 @@ history strip.
 
 ## Features
 
-- **Address-first dashboard** — today's remaining outage windows, tomorrow's
-  windows, or a green "no outages planned" state.
+- **Zero-setup dashboard** — opens straight to today's remaining outage windows,
+  tomorrow's windows, or a green "no outages planned" state.
 - **Freshness stamps** — when DTEK last updated its schedule, when the source
   graph was updated, and when our collector last checked.
 - **7-day history** — planned off-hours per day, derived from half-hour slots.
 - **EN / RU** switch with a remembered preference.
-- **Settings page** — change the address at any time.
+- **Manual refresh** — a button, plus a 60-second auto-refresh, re-reads the
+  latest data in place.
 - **Ingest API** — a collector worker pushes each check; we store raw checks,
   the resolved daily schedule, slot expansion and a change log.
 - **Turso-ready** — the same code runs against a local file in dev and a hosted
@@ -29,21 +30,21 @@ history strip.
 
 ---
 
-## How multi-user works (the cookie model)
+## How it works (single address)
 
-There are no accounts and no passwords.
+There are no accounts, no logins and no address form.
 
-1. A visitor submits their address on the home page.
-2. `POST /api/settings` upserts the address in `addresses` and links it to a
-   random `dtektor_id` cookie (a UUID, `httpOnly`, 1-year expiry) in `watches`.
-3. Every later page load / `GET /api/state` reads that cookie, resolves the
-   linked address, and returns **only that address's** data.
-4. Multiple browsers/cookies can point at the same address row; the address is
-   de-duplicated by `UNIQUE(street, building)`.
-5. The language preference lives in a separate `dtektor_lang` cookie.
+1. The **collector** posts each DTEK check to `POST /api/ingest`, which upserts
+   the address and stores the schedule.
+2. The home page (`readState`) returns the **primary address** — the most
+   recently seen one — so any visitor sees it immediately, with no setup.
+3. A legacy cookie path remains: if a `dtektor_id` cookie points at an address,
+   that address wins; otherwise the primary address is shown. `POST
+   /api/settings` still exists but is no longer linked from the UI.
+4. The language preference lives in a separate `dtektor_lang` cookie.
 
-Nothing about one visitor is ever exposed to another: the cookie — not a URL
-parameter — decides what you see.
+Because the deployment tracks one address, there is nothing to configure per
+visitor.
 
 ---
 
@@ -88,17 +89,17 @@ parameter — decides what you see.
 
 ```
 app/
-  page.tsx              server component: address form OR dashboard
-  settings/page.tsx     client component: change the address
+  page.tsx              server component: dashboard (no setup step)
   layout.tsx            root layout (light theme, fonts)
   globals.css           Tailwind v4 + light-only base styles
   api/
-    settings/route.ts   POST  set address, link cookie
-    state/route.ts      GET   dashboard state for the cookie
+    settings/route.ts   POST  set address, link cookie (legacy; not in UI)
+    state/route.ts      GET   dashboard state for the visitor
     ingest/route.ts     POST  collector payload (secret-protected)
     lang/route.ts       GET   set language cookie, redirect to "/"
 components/
-  AddressForm.tsx       reusable client form
+  RefreshButton.tsx     client refresh button
+  AutoRefresh.tsx       60s in-place re-fetch
   LangSwitch.tsx        EN / RU links
 lib/
   db.ts                 libSQL client, schema, queries, ingest
@@ -217,6 +218,9 @@ plus `checks(address_id)`, `day_schedule(address_id)`, `watches(cookie_id)`.
 ## API contract
 
 ### `POST /api/settings`
+
+> **Legacy.** The UI no longer calls this endpoint; the page shows the
+> collector-fed primary address automatically. Retained for direct use/testing.
 
 Create/select an address and link the visitor cookie.
 

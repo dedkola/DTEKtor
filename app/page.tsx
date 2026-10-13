@@ -1,10 +1,12 @@
+/* eslint-disable @next/next/no-img-element */
 import { cookies } from "next/headers";
 
-import AddressForm from "@/components/AddressForm";
 import AutoRefresh from "@/components/AutoRefresh";
 import LangSwitch from "@/components/LangSwitch";
+import RefreshButton from "@/components/RefreshButton";
 import { normalizeLang, t, type Dict, type Lang } from "@/lib/i18n";
-import { readState, type AddressInfo, type DayInfo } from "@/lib/state";
+import { shotSlug } from "@/lib/shots";
+import { readDashboard, type DashboardColumn, type DayInfo } from "@/lib/state";
 import { KYIV_TZ } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -12,103 +14,75 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const cookieStore = await cookies();
   const lang = normalizeLang(cookieStore.get("dtektor_lang")?.value);
-  const cookieId = cookieStore.get("dtektor_id")?.value ?? null;
   const L = t(lang);
 
-  const state = await readState(cookieId);
+  const columns = await readDashboard();
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-10">
+      <AutoRefresh seconds={60} />
+
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">DTEKtor</h1>
           <p className="text-sm text-slate-500">{L.tagline}</p>
         </div>
-        <LangSwitch lang={lang} />
+        <div className="flex shrink-0 items-center gap-2">
+          <RefreshButton label={L.refresh} />
+          <LangSwitch lang={lang} />
+        </div>
       </header>
 
-      {state.address ? (
-        <Dashboard state={state} lang={lang} L={L} />
-      ) : (
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-slate-900">{L.setupTitle}</h2>
-          <p className="mt-1 mb-5 text-sm text-slate-500">{L.setupIntro}</p>
-          <AddressForm lang={lang} />
-        </section>
-      )}
+      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+        {columns.map((col) => (
+          <AddressColumn key={`${col.street}/${col.building}`} col={col} lang={lang} L={L} />
+        ))}
+      </div>
+
+      <Screenshots columns={columns} L={L} />
 
       <footer className="mt-10 text-center text-xs text-slate-400">{L.footer}</footer>
     </main>
   );
 }
 
-function Dashboard({
-  state,
-  lang,
-  L,
-}: {
-  state: Extract<Awaited<ReturnType<typeof readState>>, { address: AddressInfo }>;
-  lang: Lang;
-  L: Dict;
-}) {
-  const stamp = (iso: string | null) => formatStamp(iso, lang, L.noData);
-
+function AddressColumn({ col, lang, L }: { col: DashboardColumn; lang: Lang; L: Dict }) {
   return (
-    <div className="mt-8 space-y-4">
-      <AutoRefresh seconds={60} />
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-              {L.addressLabel}
-            </div>
-            <div className="truncate text-lg font-semibold text-slate-900">
-              {addressLabel(state.address)}
-            </div>
-          </div>
-          <a
-            href="/settings"
-            className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            {L.changeAddress}
-          </a>
+    <section className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          {L.addressLabel}
         </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <DayCard title={L.todayTitle} day={state.today} L={L} />
-        <DayCard title={L.tomorrowTitle} day={state.tomorrow} L={L} />
+        <div className="truncate text-lg font-semibold text-slate-900">
+          {col.street} {col.building}
+        </div>
       </div>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Stamp label={L.updatedLabel} value={stamp(state.updated)} />
-        <Stamp label={L.graphLabel} value={stamp(state.graphUpdated)} />
-        <Stamp label={L.checkedLabel} value={stamp(state.checkedAt)} />
-      </section>
+      {col.state ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <DayCard title={L.todayTitle} day={col.state.today} L={L} />
+            <DayCard title={L.tomorrowTitle} day={col.state.tomorrow} L={L} />
+          </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700">{L.historyTitle}</h2>
-        <div className="mt-4 flex items-end gap-2">
-          {state.history.map((h) => (
-            <div key={h.day} className="flex flex-1 flex-col items-center gap-1">
-              <div className="h-4 text-[10px] font-medium text-slate-500">
-                {h.offHours > 0 ? `${h.offHours}${L.hoursShort}` : ""}
-              </div>
-              <div className="flex h-16 w-full items-end overflow-hidden rounded bg-slate-100">
-                <div
-                  className="w-full rounded bg-slate-800"
-                  style={{ height: `${Math.min(100, (h.offHours / 24) * 100)}%` }}
-                />
-              </div>
-              <div className="text-[10px] font-medium text-slate-500">
-                {weekdayShort(h.day, lang)}
-              </div>
-              <div className="text-[10px] text-slate-400">{h.day.slice(5)}</div>
-            </div>
-          ))}
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Stamp label={L.updatedLabel} value={formatStamp(col.state.updated, lang, L.noData)} />
+            <Stamp
+              label={L.graphLabel}
+              value={formatStamp(col.state.graphUpdated, lang, L.noData)}
+            />
+            <Stamp
+              label={L.checkedLabel}
+              value={formatStamp(col.state.checkedAt, lang, L.noData)}
+            />
+          </section>
+        </>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+          {L.waitingIntro}
         </div>
-      </section>
-    </div>
+      )}
+    </section>
   );
 }
 
@@ -158,9 +132,48 @@ function Stamp({ label, value }: { label: string; value: string }) {
   );
 }
 
-function addressLabel(a: AddressInfo): string {
-  const base = `${a.street} ${a.building}`.trim();
-  return a.label ? `${base} · ${a.label}` : base;
+function Screenshots({ columns, L }: { columns: DashboardColumn[]; L: Dict }) {
+  const items = columns
+    .map((col) => ({ col, slug: shotSlug(col.street) }))
+    .filter((x): x is { col: DashboardColumn; slug: string } => x.slug !== null);
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-semibold text-slate-700">{L.screenshotTitle}</h2>
+      <p className="mt-1 text-xs text-slate-400">{L.screenshotHint}</p>
+
+      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {items.map(({ col, slug }) => (
+          <figure
+            key={slug}
+            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+          >
+            <figcaption className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
+              <span className="truncate text-xs font-medium text-slate-600">
+                {col.street} {col.building}
+              </span>
+              <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-400">
+                {L.screenshotClickHint}
+              </span>
+            </figcaption>
+            <a
+              href={`/api/screenshot/${slug}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block"
+            >
+              <img
+                src={`/api/screenshot/${slug}`}
+                alt={`DTEK outage graph — ${col.street} ${col.building}`}
+                className="block w-full bg-slate-50 transition hover:opacity-90"
+              />
+            </a>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function formatStamp(iso: string | null, lang: Lang, fallback: string): string {
@@ -172,13 +185,4 @@ function formatStamp(iso: string | null, lang: Lang, fallback: string): string {
     dateStyle: "short",
     timeStyle: "short",
   }).format(d);
-}
-
-function weekdayShort(day: string, lang: Lang): string {
-  const [y, m, d] = day.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12));
-  return new Intl.DateTimeFormat(lang === "ru" ? "ru-RU" : "en-GB", {
-    weekday: "short",
-    timeZone: "UTC",
-  }).format(dt);
 }

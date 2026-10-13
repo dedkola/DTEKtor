@@ -235,6 +235,59 @@ export async function findAddressByCookie(cookieId: string): Promise<AddressInfo
   };
 }
 
+/**
+ * The most recently seen address overall, or null.
+ * Used by the single-address deployment: the collector feeds exactly one
+ * address, so every visitor should see it without any setup step.
+ */
+export async function getPrimaryAddress(): Promise<AddressInfo | null> {
+  const rows = await all(
+    `SELECT a.id AS id, a.street AS street, a.building AS building,
+            a.label AS label, a.created_at AS created_at
+       FROM addresses a
+      ORDER BY COALESCE(
+                 (SELECT MAX(w.last_seen_at) FROM watches w WHERE w.address_id = a.id),
+                 a.created_at
+               ) DESC
+      LIMIT 1`,
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    id: asNumber(r.id),
+    street: asString(r.street) ?? "",
+    building: asString(r.building) ?? "",
+    label: asString(r.label),
+    createdAt: asString(r.created_at),
+  };
+}
+
+/**
+ * Look up one address by its exact (street, building), or null.
+ * Used by the predefined two-address dashboard.
+ */
+export async function getAddressByStreetBuilding(
+  street: string,
+  building: string,
+): Promise<AddressInfo | null> {
+  const rows = await all(
+    `SELECT id, street, building, label, created_at
+       FROM addresses
+      WHERE street = ? AND building = ?
+      LIMIT 1`,
+    [street, building],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    id: asNumber(r.id),
+    street: asString(r.street) ?? "",
+    building: asString(r.building) ?? "",
+    label: asString(r.label),
+    createdAt: asString(r.created_at),
+  };
+}
+
 export async function touchWatch(addressId: number, cookieId: string): Promise<void> {
   await run(`UPDATE watches SET last_seen_at = ? WHERE address_id = ? AND cookie_id = ?`, [
     new Date().toISOString(),

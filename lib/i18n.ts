@@ -12,12 +12,11 @@ export type Dict = {
   updatedLabel: string;
   checkedLabel: string;
   graphLabel: string;
-  historyTitle: string;
   hoursShort: string;
   addressLabel: string;
-  changeAddress: string;
-  setupTitle: string;
-  setupIntro: string;
+  refresh: string;
+  waitingTitle: string;
+  waitingIntro: string;
   streetLabel: string;
   buildingLabel: string;
   labelLabel: string;
@@ -35,6 +34,9 @@ export type Dict = {
   errorGeneric: string;
   windowLabel: string;
   footer: string;
+  screenshotTitle: string;
+  screenshotHint: string;
+  screenshotClickHint: string;
 };
 
 const en: Dict = {
@@ -46,13 +48,12 @@ const en: Dict = {
   updatedLabel: "DTEK updated",
   checkedLabel: "Last checked",
   graphLabel: "Graph updated",
-  historyTitle: "Last 7 days",
   hoursShort: "h",
   addressLabel: "Address",
-  changeAddress: "Change address",
-  setupTitle: "Where do you live?",
-  setupIntro:
-    "Enter your street and building once. DTEKtor will show only your address from then on.",
+  refresh: "Refresh",
+  waitingTitle: "Waiting for data",
+  waitingIntro:
+    "No address has been recorded yet. The collector fills this automatically every few minutes.",
   streetLabel: "Street",
   buildingLabel: "Building",
   labelLabel: "Label (optional)",
@@ -71,6 +72,9 @@ const en: Dict = {
   errorGeneric: "Something went wrong. Please try again.",
   windowLabel: "window",
   footer: "Data is collected from DTEK's public outage schedule.",
+  screenshotTitle: "Latest DTEK graph",
+  screenshotHint: "Captured by the collector on its most recent check.",
+  screenshotClickHint: "Click to enlarge",
 };
 
 const ru: Dict = {
@@ -82,13 +86,12 @@ const ru: Dict = {
   updatedLabel: "Обновлено в ДТЕК",
   checkedLabel: "Проверено",
   graphLabel: "Обновлён график",
-  historyTitle: "Последние 7 дней",
   hoursShort: "ч",
   addressLabel: "Адрес",
-  changeAddress: "Изменить адрес",
-  setupTitle: "Где вы живёте?",
-  setupIntro:
-    "Укажите улицу и дом один раз. DTEKtor будет показывать только ваш адрес.",
+  refresh: "Обновить",
+  waitingTitle: "Ожидание данных",
+  waitingIntro:
+    "Адрес ещё не записан. Сборщик заполнит его автоматически в течение нескольких минут.",
   streetLabel: "Улица",
   buildingLabel: "Дом",
   labelLabel: "Название (необязательно)",
@@ -107,6 +110,9 @@ const ru: Dict = {
   errorGeneric: "Что-то пошло не так. Попробуйте ещё раз.",
   windowLabel: "интервал",
   footer: "Данные собираются из публичного графика отключений ДТЕК.",
+  screenshotTitle: "Последний график ДТЕК",
+  screenshotHint: "Снимок сделан сборщиком во время последней проверки.",
+  screenshotClickHint: "Нажмите, чтобы увеличить",
 };
 
 const DICTS: Record<Lang, Dict> = { en, ru };

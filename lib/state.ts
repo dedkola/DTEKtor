@@ -4,9 +4,10 @@
 import {
   ensureSchema,
   findAddressByCookie,
+  getAddressByStreetBuilding,
   getDaySchedule,
   getLatestCheck,
-  getPlannedSlotCounts,
+  getPrimaryAddress,
   touchWatch,
   type AddressInfo,
 } from "./db";
@@ -21,13 +22,7 @@ export type DayInfo = {
   upcoming: string[];
 };
 
-export type HistoryEntry = {
-  day: string;
-  /** Planned hours without power for that day (half-hour slots / 2). */
-  offHours: number;
-};
-
-export type DashboardState = {
+export type AddressState = {
   address: AddressInfo;
   today: DayInfo;
   tomorrow: DayInfo;
@@ -37,47 +32,34 @@ export type DashboardState = {
   graphUpdated: string | null;
   /** When our collector last checked. */
   checkedAt: string | null;
-  history: HistoryEntry[];
 };
 
+export type DashboardState = AddressState;
 export type StateResponse = { address: null } | DashboardState;
 
-const HISTORY_DAYS = 7;
-
 /**
- * Resolve the state for a browser cookie id.
- * Returns { address: null } when there is no cookie or no linked address.
+ * The addresses shown side by side on the dashboard.
+ * Fixed for now; per-user address selection comes later.
  */
-export async function readState(cookieId?: string | null): Promise<StateResponse> {
-  await ensureSchema();
+export const TRACKED_ADDRESSES: ReadonlyArray<{ street: string; building: string }> = [
+  { street: "Березняківська", building: "12" },
+  { street: "Урлівська", building: "34" },
+];
 
-  if (!cookieId) return { address: null };
-
-  const address = await findAddressByCookie(cookieId);
-  if (!address) return { address: null };
-
-  await touchWatch(address.id, cookieId);
-
+/** Build the dashboard state for an already-resolved address. */
+export async function readAddressState(address: AddressInfo): Promise<AddressState> {
   const today = kyivDay();
   const tomorrow = addDays(today, 1);
   const nowMinutes = kyivMinutes();
-  const historyFrom = addDays(today, -(HISTORY_DAYS - 1));
 
-  const [todaySchedule, tomorrowSchedule, latest, slotCounts] = await Promise.all([
+  const [todaySchedule, tomorrowSchedule, latest] = await Promise.all([
     getDaySchedule(address.id, today),
     getDaySchedule(address.id, tomorrow),
     getLatestCheck(address.id),
-    getPlannedSlotCounts(address.id, historyFrom),
   ]);
 
   const todayWindows = todaySchedule?.windows ?? [];
   const tomorrowWindows = tomorrowSchedule?.windows ?? [];
-
-  const history: HistoryEntry[] = [];
-  for (let i = HISTORY_DAYS - 1; i >= 0; i--) {
-    const day = addDays(today, -i);
-    history.push({ day, offHours: (slotCounts[day] ?? 0) / 2 });
-  }
 
   return {
     address,
@@ -93,6 +75,43 @@ export async function readState(cookieId?: string | null): Promise<StateResponse
     updated: latest?.dtekUpdated ?? null,
     graphUpdated: latest?.graphUpdated ?? null,
     checkedAt: latest?.checkedAt ?? null,
-    history,
   };
+}
+
+/**
+ * Resolve the state for a visitor (used by GET /api/state).
+ * Prefers the primary (collector-fed) address; a cookie-linked one still wins.
+ * Returns { address: null } only while nothing has been recorded yet.
+ */
+export async function readState(cookieId?: string | null): Promise<StateResponse> {
+  await ensureSchema();
+
+  let address = cookieId ? await findAddressByCookie(cookieId) : null;
+  if (!address) address = await getPrimaryAddress();
+  if (!address) return { address: null };
+
+  if (cookieId) await touchWatch(address.id, cookieId);
+  return readAddressState(address);
+}
+
+export type DashboardColumn = {
+  street: string;
+  building: string;
+  /** null until the collector has recorded this address. */
+  state: AddressState | null;
+};
+
+/**
+ * State for the predefined multi-address dashboard.
+ * Missing addresses come back with `state: null` (a "waiting" column).
+ */
+export async function readDashboard(): Promise<DashboardColumn[]> {
+  await ensureSchema();
+  return Promise.all(
+    TRACKED_ADDRESSES.map(async (a) => {
+      const address = await getAddressByStreetBuilding(a.street, a.building);
+      const state = address ? await readAddressState(address) : null;
+      return { street: a.street, building: a.building, state };
+    }),
+  );
 }
