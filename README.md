@@ -11,6 +11,15 @@ schedules and graph screenshots for configured addresses, with warnings when
 collection fails or data becomes stale. The interface is Russian-only; dates
 use `Europe/Kyiv`.
 
+Open browser windows update automatically through `/api/events` (Server-Sent
+Events). The server checks saved schedules, collector health and screenshot files
+every five seconds per connected window, sending a revision only when data changes.
+Updates preserve scroll position and address order. Connections retry automatically;
+if streaming is unavailable, the page refreshes every 60 seconds and catches up
+when a tab becomes visible or the browser comes back online. The collector still
+runs on its configured interval. Reverse proxies must pass event streams without
+buffering; the endpoint sends `X-Accel-Buffering: no` and heartbeat events.
+
 ## Local development
 
 Requires Node.js 22+ and npm.

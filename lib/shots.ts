@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { readAddresses } from "../config/addresses.mjs";
 
@@ -9,8 +9,13 @@ export function shotSlug(street: string, building: string): string | null {
 }
 
 export async function hasShot(slug: string): Promise<boolean> {
+  return (await shotVersion(slug)) !== null;
+}
+
+/** Changes the image URL whenever the collector replaces a screenshot. */
+export async function shotVersion(slug: string): Promise<string | null> {
   try {
-    await access(path.join(SHOTS_DIR, `${slug}.png`));
-    return true;
-  } catch { return false; }
+    const file = await stat(path.join(SHOTS_DIR, `${slug}.png`));
+    return `${file.mtimeMs}-${file.size}`;
+  } catch { return null; }
 }
