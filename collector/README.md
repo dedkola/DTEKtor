@@ -8,21 +8,21 @@ setup, configuration, backup and migration instructions.
 
 ## Run without Docker
 
-From the repository root, with Node.js 20 or newer:
+From the repository root, `npm run dev` starts the dashboard and this collector
+together, installs missing collector dependencies/Chromium, loads the same
+Next.js development environment files for both processes and stops both on Ctrl+C.
+
+For a standalone worker after setup, use Node.js 20 or newer:
 
 ```sh
-npm ci --prefix collector
-cd collector && npx playwright install chromium && cd ..
-# Export INGEST_SECRET to match the web app's configuration.
-node collector/worker.mjs
+node --env-file=.env.local collector/worker.mjs
 # Or one complete cycle:
-node collector/worker.mjs --once
+node --env-file=.env.local collector/worker.mjs --once
 ```
 
-The worker does not automatically load Next.js `.env.local`. Export its settings
-in the shell. It defaults to `http://127.0.0.1:3000`, `./data/shots`, a 45-second
-check deadline and a five-minute pause after each completed cycle. It retries
-failed checks/delivery up to three times and publishes cycle status for the UI.
+The worker defaults to `http://127.0.0.1:3000`, `./data/shots`, a 45-second check
+deadline and a five-minute pause after each completed cycle. It retries failed
+checks/delivery up to three times and publishes cycle status for the UI.
 
 ## Low-level scraper
 
