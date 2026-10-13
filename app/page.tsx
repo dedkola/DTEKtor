@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import AddressForm from "@/components/AddressForm";
+import AutoRefresh from "@/components/AutoRefresh";
 import LangSwitch from "@/components/LangSwitch";
 import { normalizeLang, t, type Dict, type Lang } from "@/lib/i18n";
 import { readState, type AddressInfo, type DayInfo } from "@/lib/state";
@@ -54,6 +55,7 @@ function Dashboard({
 
   return (
     <div className="mt-8 space-y-4">
+      <AutoRefresh seconds={60} />
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
