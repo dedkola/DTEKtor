@@ -64,10 +64,10 @@ function ScheduleCard({ col, L }: { col: DashboardColumn; L: Dict }) {
       <div className="mt-4 border-t border-slate-100 pt-4">
         {s ? (
           <div className="space-y-3">
-            <Row label={L.todayShort} windows={s.today.upcoming} empty={L.noOutagesToday} />
+            <Row label={L.todayShort} windows={s.today.windows} empty={L.noOutagesToday} />
             <Row
               label={L.tomorrowShort}
-              windows={s.tomorrow.upcoming}
+              windows={s.tomorrow.windows}
               empty={L.noOutagesTomorrow}
             />
           </div>
