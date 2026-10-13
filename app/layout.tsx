@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DTEKtor — DTEK outage tracker",
   description:
-    "Shows your address's remaining DTEK power outages for today and tomorrow, plus a 7-day history.",
+    "Shows your address's remaining DTEK power outages for today and tomorrow.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

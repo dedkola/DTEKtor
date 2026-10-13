@@ -33,6 +33,18 @@ export type Dict = {
   errorRequired: string;
   errorGeneric: string;
   windowLabel: string;
+  cardTitle: string;
+  network: string;
+  todayShort: string;
+  tomorrowShort: string;
+  noOutagesToday: string;
+  noOutagesTomorrow: string;
+  upToDate: string;
+  checkedPrefix: string;
+  dtekDataPrefix: string;
+  graphPrefix: string;
+  bookmarkNote: string;
+  graphPanelTitle: string;
   footer: string;
   screenshotTitle: string;
   screenshotHint: string;
@@ -71,6 +83,18 @@ const en: Dict = {
   errorRequired: "Please enter both street and building.",
   errorGeneric: "Something went wrong. Please try again.",
   windowLabel: "window",
+  cardTitle: "Power outage schedule",
+  network: "DTEK Kyiv Electric Networks",
+  todayShort: "TODAY",
+  tomorrowShort: "TOMORROW",
+  noOutagesToday: "no outages today",
+  noOutagesTomorrow: "no outages tomorrow",
+  upToDate: "UP TO DATE",
+  checkedPrefix: "Checked:",
+  dtekDataPrefix: "DTEK data",
+  graphPrefix: "graph",
+  bookmarkNote: "Bookmark this page — your address is already set.",
+  graphPanelTitle: "DTEK GRAPH",
   footer: "Data is collected from DTEK's public outage schedule.",
   screenshotTitle: "Latest DTEK graph",
   screenshotHint: "Captured by the collector on its most recent check.",
@@ -109,6 +133,18 @@ const ru: Dict = {
   errorRequired: "Укажите улицу и дом.",
   errorGeneric: "Что-то пошло не так. Попробуйте ещё раз.",
   windowLabel: "интервал",
+  cardTitle: "График отключений",
+  network: "ДТЕК Киевские электрoсети",
+  todayShort: "СЕГОДНЯ",
+  tomorrowShort: "ЗАВТРА",
+  noOutagesToday: "сегодня отключений нет",
+  noOutagesTomorrow: "завтра отключений нет",
+  upToDate: "АКТУАЛЬНО",
+  checkedPrefix: "Проверено:",
+  dtekDataPrefix: "Данные ДТЕК",
+  graphPrefix: "график",
+  bookmarkNote: "Добавьте страницу в закладки — адрес уже указан.",
+  graphPanelTitle: "ГРАФИК ДТЕК",
   footer: "Данные собираются из публичного графика отключений ДТЕК.",
   screenshotTitle: "Последний график ДТЕК",
   screenshotHint: "Снимок сделан сборщиком во время последней проверки.",
