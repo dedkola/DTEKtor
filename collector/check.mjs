@@ -39,6 +39,22 @@ async function dismissPopups(page) {
   throw new Error('DTEK popup remained open; screenshot not replaced')
 }
 
+// The inline yellow "attention" card (#showCurOutage) sits between the address
+// fields and the outage graph, so cropping cannot skip it. Hide it for the
+// capture only, then restore it so the schedule/date extraction still reads it.
+const NOTICE_SELECTOR = '#showCurOutage'
+async function setNoticeHidden(page, hidden) {
+  await page.evaluate(([selector, hide]) => {
+    const el = document.querySelector(selector)
+    if (!el) return
+    if (hide) {
+      el.style.setProperty('display', 'none', 'important')
+    } else {
+      el.style.removeProperty('display')
+    }
+  }, [NOTICE_SELECTOR, hidden])
+}
+
 const stateOf = (cls) => {
   const c = String(cls)
   if (c.includes('non-scheduled')) return 'on'
@@ -197,6 +213,8 @@ try {
     let image
     for (let attempt = 0; attempt < 3; attempt++) {
       await dismissPopups(page)
+      // Re-hide on every attempt: DTEK re-renders the notice after the graph loads.
+      await setNoticeHidden(page, true)
       const box = await grid.boundingBox()
       const addressBox = await page.locator('#discon_form .discon-inputs').boundingBox()
       if (!box || !addressBox) throw new Error('Screenshot crop bounds not found; screenshot not replaced')
@@ -222,6 +240,9 @@ try {
     log('shot saved')
   } catch (e) {
     log('screenshot failed:', String(e).slice(0, 120))
+  } finally {
+    // Restore the notice so the extraction below can still read its text.
+    await setNoticeHidden(page, false).catch(() => {})
   }
 
   const data = await page.evaluate(() => {
