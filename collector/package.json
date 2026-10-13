@@ -1,16 +1,7 @@
 {
-  "name": "shutdown",
-  "version": "1.0.0",
+  "name": "dtektor-collector",
   "private": true,
-  "description": "DTEK schedule and graph screenshot collector",
-  "scripts": {
-    "check": "node check.mjs"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "module",
-  "dependencies": {
-    "playwright": "^1.64.0"
-  }
+  "scripts": { "start": "node worker.mjs", "once": "node worker.mjs --once", "test": "node --test worker.test.mjs" },
+  "dependencies": { "playwright": "1.64.0" }
 }

@@ -115,6 +115,7 @@ const checkpoint = () => {
 }
 
 const browser = await chromium.launch({ headless: true })
+const watchdog = setTimeout(() => browser.close().catch(() => {}), DEADLINE_MS)
 let out = { ok: false, address: `${STREET} ${HOUSE}`, error: 'unknown' }
 try {
   const ctx = await browser.newContext({
@@ -186,7 +187,7 @@ try {
     await dismissPopups(page)
     await grid.scrollIntoViewIfNeeded()
     await page.waitForTimeout(300)
-    const shot = process.env.SHOT ?? '/home/ded/projects/shutdown/shot.png'
+    const shot = process.env.SHOT ?? './data/shots/shot.png'
     let image
     for (let attempt = 0; attempt < 3; attempt++) {
       await dismissPopups(page)
@@ -228,6 +229,7 @@ try {
     return { dates, upd: upd && upd.trim(), graphUpd, tables }
   })
 
+  if (!data.tables.length || data.tables.some(t => t.hours.length !== 24 || t.classes.length !== 24 || t.classes.some(c => stateOf(c) === 'unknown'))) throw new Error('Incomplete or unrecognized DTEK schedule')
   const todayT = data.tables[0] || { hours: [], classes: [] }
   const tomorrowT = data.tables[1] || { hours: [], classes: [] }
   out = {
@@ -248,6 +250,7 @@ try {
   out = { ...out, ok: false, error: String(e).slice(0, 200), ms: Date.now() - started }
   log('FAILED in', Date.now() - started, 'ms:', String(e).slice(0, 160))
 } finally {
+  clearTimeout(watchdog)
   await browser.close().catch(() => {})
 }
 process.stdout.write(JSON.stringify(out))

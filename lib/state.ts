@@ -1,3 +1,7 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { SHOTS_DIR, shotSlug } from "./shots";
+import { readAddresses } from "../config/addresses.mjs";
 // Read logic shared by app/page.tsx (server component) and GET /api/state.
 // No HTTP self-calls: both import this module directly.
 
@@ -32,19 +36,11 @@ export type AddressState = {
   graphUpdated: string | null;
   /** When our collector last checked. */
   checkedAt: string | null;
+  collectionProblem: boolean;
 };
 
 export type DashboardState = AddressState;
 export type StateResponse = { address: null } | DashboardState;
-
-/**
- * The addresses shown side by side on the dashboard.
- * Fixed for now; per-user address selection comes later.
- */
-export const TRACKED_ADDRESSES: ReadonlyArray<{ street: string; building: string }> = [
-  { street: "Березняківська", building: "12" },
-  { street: "Урлівська", building: "34" },
-];
 
 /** Build the dashboard state for an already-resolved address. */
 export async function readAddressState(address: AddressInfo): Promise<AddressState> {
@@ -61,6 +57,14 @@ export async function readAddressState(address: AddressInfo): Promise<AddressSta
   const todayWindows = todaySchedule?.windows ?? [];
   const tomorrowWindows = tomorrowSchedule?.windows ?? [];
 
+  let collectorFailed = false;
+  try {
+    const status = JSON.parse(await readFile(path.join(SHOTS_DIR, "status.json"), "utf8"));
+    const slug = shotSlug(address.street, address.building);
+    collectorFailed = status.addresses?.some((a: { slug: string; ok: boolean }) => a.slug === slug && !a.ok) ||
+      Date.now() - Date.parse(status.completedAt) > Math.max(15 * 60000, status.intervalMs * 3);
+  } catch { /* Existing deployments may not yet publish worker status. */ }
+
   return {
     address,
     today: {
@@ -75,6 +79,7 @@ export async function readAddressState(address: AddressInfo): Promise<AddressSta
     updated: latest?.dtekUpdated ?? null,
     graphUpdated: latest?.graphUpdated ?? null,
     checkedAt: latest?.checkedAt ?? null,
+    collectionProblem: collectorFailed || latest?.ok === false || !latest?.checkedAt || Date.now() - Date.parse(latest.checkedAt) > 15 * 60000,
   };
 }
 
@@ -108,7 +113,7 @@ export type DashboardColumn = {
 export async function readDashboard(): Promise<DashboardColumn[]> {
   await ensureSchema();
   return Promise.all(
-    TRACKED_ADDRESSES.map(async (a) => {
+    readAddresses().map(async (a) => {
       const address = await getAddressByStreetBuilding(a.street, a.building);
       const state = address ? await readAddressState(address) : null;
       return { street: a.street, building: a.building, state };

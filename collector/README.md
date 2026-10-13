@@ -1,40 +1,47 @@
 # DTEK collector
 
-This directory tracks the Playwright collector previously maintained only at
-`/home/ded/projects/shutdown/check.mjs` on the collector server. It runs separately
-from the Next.js app. The server's existing `run-check.sh` selects each address,
-sets `SHOT`, and submits the JSON output to `/api/ingest`.
+The packaged worker runs independently of Next.js, reads the same
+`config/addresses.json` as the dashboard, checks each address sequentially and
+submits successful schedules to `/api/ingest`. Docker Compose includes Chromium,
+scheduling and shared persistent screenshot storage. See the root README for
+setup, configuration, backup and migration instructions.
 
-The collector closes DTEK's modal close controls on load, during Playwright
-interactions, and immediately before capturing the graph. It checks again after
-capture and retries if another popup appeared. If a popup cannot be dismissed,
-it logs the screenshot failure to stderr and leaves the previous PNG intact.
-Successful screenshots replace the old file atomically. Schedule JSON remains
-the only stdout output.
+## Run without Docker
 
-## Run independently
-
-Use Node.js 20 or newer (the deployed collector uses Node.js 24).
+From the repository root, with Node.js 20 or newer:
 
 ```sh
-cd collector
-npm ci
-npx playwright install chromium
-STREET='Березняківська' HOUSE='12' SHOT=/tmp/dtek-graph.png npm run --silent check
+npm ci --prefix collector
+cd collector && npx playwright install chromium && cd ..
+# Export INGEST_SECRET to match the web app's configuration.
+node collector/worker.mjs
+# Or one complete cycle:
+node collector/worker.mjs --once
 ```
 
-`STREET` and `HOUSE` default to `Березняківська` and `12`. `DEADLINE_MS` defaults
-to 45000. Set `SHOT` explicitly when running outside the deployed collector:
-its existing default is `/home/ded/projects/shutdown/shot.png`.
+The worker does not automatically load Next.js `.env.local`. Export its settings
+in the shell. It defaults to `http://127.0.0.1:3000`, `./data/shots`, a 45-second
+check deadline and a five-minute pause after each completed cycle. It retries
+failed checks/delivery up to three times and publishes cycle status for the UI.
 
-## Update the existing server
+## Low-level scraper
 
-The fix is already installed on the collector at `192.168.0.120`. For subsequent
-updates, copy `check.mjs` into `/home/ded/projects/shutdown/`; the existing wrapper
-and Playwright installation continue to work without a Next.js redeployment.
-The original script is backed up there as `check.before-popup-fix-20261013.mjs`.
+`check.mjs` performs a single browser check and prints only schedule JSON to
+stdout; diagnostics go to stderr. The worker supplies `STREET`, `HOUSE`, `SHOT`
+and `DEADLINE_MS`. To call the scraper directly:
 
-Validation for this fix covered stacked modals, a modal appearing before a field
-interaction, a modal appearing before capture, and an undismissible modal.
-Live checks succeeded for both tracked addresses, and the deployed screenshot
-endpoints served exactly the collector's refreshed PNGs.
+```sh
+STREET='Березняківська' HOUSE='12' SHOT=/tmp/dtek-graph.png node collector/check.mjs
+```
+
+The scraper dismisses DTEK modals during interactions and before capturing the
+graph. It checks for another popup after capture and retries when necessary.
+Successful screenshots replace the old file atomically. Failed capture leaves
+the previous PNG intact. Incomplete or unrecognized schedule tables are rejected.
+
+## Existing server
+
+The systemd deployment at `192.168.0.120` remains independent of this repository
+update. Its old wrapper lives at `/home/ded/projects/shutdown/run-check.sh`.
+Follow the root README migration steps before switching that server to Compose;
+keep only one collector active during migration.
