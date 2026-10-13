@@ -181,6 +181,74 @@ npm run build
 Tests cover authenticated delivery, retry/continuation behavior, rejecting
 incomplete scrapes and preserving valid schedules after failed checks.
 
+## GitHub checks and production verification
+
+`CI` runs on pull requests, pushes to `main`, and manual dispatch. It runs tests
+and lint with Node 22, builds both Docker images, then exercises the web app,
+libSQL, packaged Chromium, authenticated ingest, schedule preservation, shared
+screenshots, and dashboard rendering. The Docker web build also checks Next.js
+compilation and TypeScript. Layer caches are separate for the two images.
+CI uses synthetic schedules and disposable storage; it never contacts DTEK.
+Images are not published and the workflow does not deploy anything.
+
+To reproduce the Docker checks locally (Docker Compose 2.24.4 or newer):
+
+```bash
+export INGEST_SECRET=disposable-ci-secret
+export DTEKTOR_BUILD_SHA="$(git rev-parse HEAD)"
+export COMPOSE_PROJECT_NAME=dtektor-ci-local
+export COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml
+docker compose config --quiet
+docker build --build-arg DTEKTOR_BUILD_SHA="$DTEKTOR_BUILD_SHA" -t dtektor .
+docker build -f collector/Dockerfile -t dtektor-collector .
+docker compose up --no-build --wait --wait-timeout 120 dtektor
+docker compose run --rm -e EXPECTED_SHA="$DTEKTOR_BUILD_SHA" collector
+docker compose logs --tail=150
+docker compose down --volumes --remove-orphans
+```
+
+The final command deletes only the disposable project's volumes. Do not reuse
+the production Compose project name for these checks. CI does not publish a host
+port; it reaches the web service through the isolated Compose network.
+
+`GET /api/health` returns `ready`, the baked-in `buildSha`, and collection status
+for every configured address (slugs/timestamps only). It uses database reads
+without creating schema or ingesting data. HTTP 503 means database/configuration
+readiness failed; HTTP 200 can still include `collection.ok: false`. The existing
+state endpoint initializes a fresh database during startup. Collection failure
+does not make a working dashboard unavailable.
+
+`Verify production` is manually triggered from GitHub Actions on `main`. It
+checks the active systemd service, dashboard HTTP response, database readiness,
+running build SHA, and fresh successful collection for every configured address.
+Readiness gets a 60-second retry window; collection then gets up to six minutes.
+Results are written separately to the Actions summary. This checks current
+health, not proof of a new scrape after workflow dispatch. It performs no ingest,
+restart, pull, build, or deployment on the server.
+
+Before this workflow can run:
+
+1. Register a separate runner workspace on the production server with labels
+   `self-hosted`, `linux`, `x64`, `dtektor-verification`. Use an unprivileged runner
+   account that can query `systemctl is-active dtektor.service`; keep its workspace
+   outside `/home/ded/repos/DTEKtor`. PR CI always uses GitHub-hosted runners.
+   The runner must support Node 24 actions (runner 2.327.1 or newer).
+2. Deploy a build containing `/api/health`, stamping the actual source revision:
+   `DTEKTOR_BUILD_SHA="$(git rev-parse HEAD)" npm run build`. For Docker builds,
+   pass the same value as `--build-arg DTEKTOR_BUILD_SHA=...`. Unstamped builds
+   report `unknown` and cannot pass release verification. Restart through your
+   existing deployment procedure; this workflow does not do that.
+3. Optionally set repository variable `DTEKTOR_VERIFY_URL` (default
+   `http://127.0.0.1:3000`) and `DTEKTOR_PUBLIC_URL` (an HTTPS origin) to additionally
+   check the reverse proxy, TLS, and public running version.
+4. Run the workflow with a full deployed commit SHA. Leaving it empty expects
+   the selected `main` revision, so an older running build fails explicitly.
+
+The runner and repository variables are not installed/configured by this source
+change. A LAN runner on another machine needs the systemd check adapted to query
+the deployment host. These workflows intentionally retain the current systemd
+deployment and do not migrate the server to Docker.
+
 ## License
 
 No license has been chosen; all rights reserved until one is added.
