@@ -1,0 +1,8 @@
+# Use only with an isolated CI project and disposable volumes.
+services:
+  dtektor:
+    ports: !reset []
+    restart: "no"
+  collector:
+    command: ["node", "collector/ci-smoke.mjs"]
+    restart: "no"

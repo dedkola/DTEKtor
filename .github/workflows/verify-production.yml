@@ -1,0 +1,37 @@
+name: Verify production
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full deployed commit SHA (empty means the selected main revision)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Read-only systemd and application checks
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, dtektor-verification]
+    timeout-minutes: 10
+    env:
+      EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
+      DTEKTOR_URL: ${{ vars.DTEKTOR_VERIFY_URL || 'http://127.0.0.1:3000' }}
+      PUBLIC_URL: ${{ vars.DTEKTOR_PUBLIC_URL }}
+      SYSTEMD_SERVICE: dtektor.service
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+      - name: Verify running release, readiness and collection
+        run: node .github/scripts/verify-production.mjs
