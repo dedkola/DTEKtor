@@ -1,6 +1,12 @@
 import { chromium } from 'playwright'
 import { writeFile, rename, rm } from 'node:fs/promises'
 
+// A supervisor may close the result pipe during shutdown.
+process.stdout.on('error', error => {
+  if (error.code === 'EPIPE') process.exit(0)
+  throw error
+})
+
 const URL = 'https://www.dtek-kem.com.ua/ua/shutdowns'
 const STREET = process.env.STREET || 'Березняківська'
 const HOUSE = process.env.HOUSE || '12'

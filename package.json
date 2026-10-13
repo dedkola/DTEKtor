@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test tests/*.test.ts && node --test collector/worker.test.mjs"
+    "test": "tsx --test tests/*.test.ts && node --test collector/worker.test.mjs scripts/dev.test.mjs",
+    "dev:web": "next dev"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
@@ -16,6 +17,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@next/env": "16.4.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

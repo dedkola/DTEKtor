@@ -111,21 +111,30 @@ cp .env.example .env.local
 npm run dev
 ```
 
-In another terminal, from the repository root:
+`npm run dev` starts both Next.js and the collector. On first run it installs
+missing collector dependencies and Chromium; subsequent runs reuse them. The
+launcher loads Next.js development `.env` files for both processes, waits for
+this dashboard's database API to be ready, then starts collection. Ctrl+C stops
+both process trees. If either process exits unexpectedly, the other is stopped
+and the command fails.
+
+The default port is 3000. `npm run dev -- --port 3100` starts the dashboard on
+3100 and points the collector at that port automatically. `PORT` takes precedence
+over `APP_PORT`; explicit command-line port arguments take precedence over both.
+An explicit `DTEKTOR_URL` overrides the collector destination.
+
+For web-only development, use `npm run dev:web`. To run a collector separately
+from the repository root (after installing its dependencies/browser), use:
 
 ```bash
-npm ci --prefix collector
-cd collector && npx playwright install chromium && cd ..
-# Export the same INGEST_SECRET used in .env.local before starting the worker.
-node collector/worker.mjs
+node --env-file=.env.local collector/worker.mjs
 # Or a single complete cycle:
-node collector/worker.mjs --once
+node --env-file=.env.local collector/worker.mjs --once
 ```
 
-Node scripts do not load Next.js `.env.local` automatically. Export the settings
-for the worker in your shell. Default database: `file:./data/dtektor.db`; default
-screenshots: `./data/shots`. `ADDRESSES_FILE`, `SHOTS_DIR` and `DTEKTOR_URL` are
-optional overrides. Run the worker from the repository root.
+Default database: `file:./data/dtektor.db`; default screenshots: `./data/shots`.
+`ADDRESSES_FILE`, `SHOTS_DIR` and `DTEKTOR_URL` are optional overrides. Docker
+Compose continues to run the web app and collector as separate services.
 
 ## Architecture and API
 
