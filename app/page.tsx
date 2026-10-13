@@ -12,18 +12,15 @@ export default async function Home() {
   const columns = await readDashboard();
 
   return (
-    <main className="w-full px-4 py-8 sm:px-6 sm:py-10">
+    <main className="w-full px-4 py-4 sm:px-6 sm:py-6">
       <AutoRefresh seconds={60} />
 
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">DTEKtor</h1>
-          <p className="text-sm text-slate-500">{L.tagline}</p>
-        </div>
-      </header>
-
-      <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
         <div className="space-y-5">
+          <header>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">DTEKtor</h1>
+            <p className="text-sm text-slate-500">{L.tagline}</p>
+          </header>
           {columns.map((col) => (
             <ScheduleCard key={`c-${col.street}/${col.building}`} col={col} L={L} />
           ))}
@@ -129,14 +126,7 @@ async function GraphPanel({ col, L }: { col: DashboardColumn; L: Dict }) {
   const available = slug ? await hasShot(slug) : false;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-        <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-          {L.graphPanelTitle}
-        </h2>
-        <span className="truncate text-xs text-slate-400">{address}</span>
-      </div>
-
+    <section aria-label={`${L.graphPanelTitle} — ${address}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {slug && available ? (
         <a href={`/api/screenshot/${slug}`} target="_blank" rel="noreferrer" className="block">
           <img
