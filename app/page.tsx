@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import AutoRefresh from "@/components/AutoRefresh";
+import DashboardLayout from "@/components/DashboardLayout";
 import RefreshButton from "@/components/RefreshButton";
 import { labels as L, type Dict } from "@/lib/i18n";
 import { hasShot, shotSlug } from "@/lib/shots";
@@ -15,26 +16,25 @@ export default async function Home() {
     <main className="w-full px-4 py-4 sm:px-6 sm:py-6">
       <AutoRefresh seconds={60} />
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
-        <div className="space-y-5">
+      <DashboardLayout
+        entries={await Promise.all(columns.map(async col => ({
+          id: JSON.stringify([col.street, col.building]),
+          address: `${col.street} ${col.building}`,
+          card: <ScheduleCard col={col} L={L} />,
+          screenshot: await GraphPanel({ col, L }),
+        })))}
+        header={
           <header>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">DTEKtor</h1>
             <p className="text-sm text-slate-500">{L.tagline}</p>
           </header>
-          {columns.map((col) => (
-            <ScheduleCard key={`c-${col.street}/${col.building}`} col={col} L={L} />
-          ))}
+        }
+        refresh={
           <div className="flex items-center gap-2">
             <RefreshButton label={L.refresh} />
           </div>
-        </div>
-
-        <div className="space-y-5">
-          {columns.map((col) => (
-            <GraphPanel key={`g-${col.street}/${col.building}`} col={col} L={L} />
-          ))}
-        </div>
-      </div>
+        }
+      />
 
       <footer className="mt-10 text-center text-xs text-slate-400">{L.footer}</footer>
     </main>
@@ -48,7 +48,7 @@ function ScheduleCard({ col, L }: { col: DashboardColumn; L: Dict }) {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2 pr-20">
         <span aria-hidden className="text-base leading-6">
           ⚡
         </span>
