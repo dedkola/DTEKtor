@@ -27,9 +27,6 @@ export default async function Home() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">DTEKtor</h1>
           <p className="text-sm text-slate-500">{L.tagline}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <RefreshButton label={L.refresh} />
-        </div>
       </header>
 
       <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
@@ -37,6 +34,10 @@ export default async function Home() {
           {columns.map((col) => (
             <ScheduleCard key={`c-${col.street}/${col.building}`} col={col} lang={lang} L={L} />
           ))}
+          <div className="flex items-center gap-2">
+            <RefreshButton label={L.refresh} />
+            <LangSwitch lang={lang} />
+          </div>
         </div>
 
         <div className="space-y-5">
@@ -44,10 +45,6 @@ export default async function Home() {
             <GraphPanel key={`g-${col.street}/${col.building}`} col={col} L={L} />
           ))}
         </div>
-      </div>
-
-      <div className="mt-6 flex justify-start">
-        <LangSwitch lang={lang} />
       </div>
 
       <footer className="mt-10 text-center text-xs text-slate-400">{L.footer}</footer>
