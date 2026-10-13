@@ -1,15 +1,16 @@
-// Maps a tracked street to the screenshot file the collector writes.
-// run-check.sh saves full-page captures under ./shots/<slug>.png; the web app
-// serves them through /api/screenshot/<slug> so they can be shown and clicked.
+import { access } from "node:fs/promises";
+import path from "node:path";
+import { readAddresses } from "../config/addresses.mjs";
 
-export const SHOTS_DIR = "/home/ded/projects/shutdown/shots";
+export const SHOTS_DIR = process.env.SHOTS_DIR || path.resolve("data/shots");
 
-const SLUGS: Record<string, string> = {
-  Березняківська: "berezniakivska",
-  Урлівська: "urlivska",
-};
+export function shotSlug(street: string, building: string): string | null {
+  return readAddresses().find(a => a.street === street.trim() && a.building === building.trim())?.slug ?? null;
+}
 
-/** Screenshot slug for a street, or null when we have no capture for it. */
-export function shotSlug(street: string): string | null {
-  return SLUGS[street.trim()] ?? null;
+export async function hasShot(slug: string): Promise<boolean> {
+  try {
+    await access(path.join(SHOTS_DIR, `${slug}.png`));
+    return true;
+  } catch { return false; }
 }

@@ -1,21 +1,14 @@
 /* eslint-disable @next/next/no-img-element */
-import { cookies } from "next/headers";
-
 import AutoRefresh from "@/components/AutoRefresh";
-import LangSwitch from "@/components/LangSwitch";
 import RefreshButton from "@/components/RefreshButton";
-import { normalizeLang, t, type Dict, type Lang } from "@/lib/i18n";
-import { shotSlug } from "@/lib/shots";
+import { labels as L, type Dict } from "@/lib/i18n";
+import { hasShot, shotSlug } from "@/lib/shots";
 import { readDashboard, type DashboardColumn } from "@/lib/state";
 import { KYIV_TZ } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const cookieStore = await cookies();
-  const lang = normalizeLang(cookieStore.get("dtektor_lang")?.value);
-  const L = t(lang);
-
   const columns = await readDashboard();
 
   return (
@@ -32,11 +25,10 @@ export default async function Home() {
       <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
         <div className="space-y-5">
           {columns.map((col) => (
-            <ScheduleCard key={`c-${col.street}/${col.building}`} col={col} lang={lang} L={L} />
+            <ScheduleCard key={`c-${col.street}/${col.building}`} col={col} L={L} />
           ))}
           <div className="flex items-center gap-2">
             <RefreshButton label={L.refresh} />
-            <LangSwitch lang={lang} />
           </div>
         </div>
 
@@ -53,7 +45,7 @@ export default async function Home() {
 }
 
 /** Compact "Power outage schedule" card (one per address). */
-function ScheduleCard({ col, lang, L }: { col: DashboardColumn; lang: Lang; L: Dict }) {
+function ScheduleCard({ col, L }: { col: DashboardColumn; L: Dict }) {
   const s = col.state;
   const address = `${col.street} ${col.building}`;
 
@@ -84,14 +76,19 @@ function ScheduleCard({ col, lang, L }: { col: DashboardColumn; lang: Lang; L: D
         )}
       </div>
 
+      {s?.collectionProblem ? (
+        <p role="status" className="mt-3 text-xs text-amber-700">
+          Не удалось обновить график или данные устарели. Показан последний сохранённый график.
+        </p>
+      ) : null}
       {s ? (
         <div className="mt-4 border-t border-slate-100 pt-4">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
-              {L.upToDate}
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${s.collectionProblem ? "text-amber-700" : "text-emerald-600"}`}>
+              {s.collectionProblem ? "Данные требуют обновления" : L.upToDate}
             </span>
             <span className="text-xs text-slate-500">
-              {L.checkedPrefix} {formatStamp(s.checkedAt, lang, L.noData)}
+              {L.checkedPrefix} {formatStamp(s.checkedAt, L.noData)}
             </span>
           </div>
 
@@ -126,9 +123,10 @@ function Row({ label, windows, empty }: { label: string; windows: string[]; empt
 }
 
 /** Wide panel holding the cropped DTEK graph capture (click to enlarge). */
-function GraphPanel({ col, L }: { col: DashboardColumn; L: Dict }) {
-  const slug = shotSlug(col.street);
+async function GraphPanel({ col, L }: { col: DashboardColumn; L: Dict }) {
+  const slug = shotSlug(col.street, col.building);
   const address = `${col.street} ${col.building}`;
+  const available = slug ? await hasShot(slug) : false;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -139,11 +137,11 @@ function GraphPanel({ col, L }: { col: DashboardColumn; L: Dict }) {
         <span className="truncate text-xs text-slate-400">{address}</span>
       </div>
 
-      {slug ? (
+      {slug && available ? (
         <a href={`/api/screenshot/${slug}`} target="_blank" rel="noreferrer" className="block">
           <img
             src={`/api/screenshot/${slug}`}
-            alt={`DTEK outage graph — ${address}`}
+            alt={`График отключений ДТЕК — ${address}`}
             className="block w-full bg-slate-50 transition hover:opacity-90"
           />
         </a>
@@ -154,11 +152,11 @@ function GraphPanel({ col, L }: { col: DashboardColumn; L: Dict }) {
   );
 }
 
-function formatStamp(iso: string | null, lang: Lang, fallback: string): string {
+function formatStamp(iso: string | null, fallback: string): string {
   if (!iso) return fallback;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat(lang === "ru" ? "ru-RU" : "en-GB", {
+  return new Intl.DateTimeFormat("ru-RU", {
     timeZone: KYIV_TZ,
     dateStyle: "short",
     timeStyle: "short",

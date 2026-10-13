@@ -1,7 +1,4 @@
-// Tiny i18n dictionary. English + Russian only.
-// Safe to import from both server and client components (no server-only deps).
-
-export type Lang = "en" | "ru";
+// Russian interface labels. Safe for server and client components.
 
 export type Dict = {
   tagline: string;
@@ -51,57 +48,7 @@ export type Dict = {
   screenshotClickHint: string;
 };
 
-const en: Dict = {
-  tagline: "DTEK outage tracker",
-  todayTitle: "Today (remaining)",
-  tomorrowTitle: "Tomorrow",
-  noOutages: "No outages planned",
-  possibleOutages: "Possible outages",
-  updatedLabel: "DTEK updated",
-  checkedLabel: "Last checked",
-  graphLabel: "Graph updated",
-  hoursShort: "h",
-  addressLabel: "Address",
-  refresh: "Refresh",
-  waitingTitle: "Waiting for data",
-  waitingIntro:
-    "No address has been recorded yet. The collector fills this automatically every few minutes.",
-  streetLabel: "Street",
-  buildingLabel: "Building",
-  labelLabel: "Label (optional)",
-  labelPlaceholder: "e.g. Home",
-  save: "Save",
-  saving: "Saving…",
-  saved: "Saved",
-  currentAddress: "Current address",
-  notSet: "Not set",
-  settingsTitle: "Settings",
-  settingsNote:
-    "Your address is matched against DTEK's outage list by the checker.",
-  backToDashboard: "Back to dashboard",
-  noData: "No data yet",
-  errorRequired: "Please enter both street and building.",
-  errorGeneric: "Something went wrong. Please try again.",
-  windowLabel: "window",
-  cardTitle: "Power outage schedule",
-  network: "DTEK Kyiv Electric Networks",
-  todayShort: "TODAY",
-  tomorrowShort: "TOMORROW",
-  noOutagesToday: "no outages today",
-  noOutagesTomorrow: "no outages tomorrow",
-  upToDate: "UP TO DATE",
-  checkedPrefix: "Checked:",
-  dtekDataPrefix: "DTEK data",
-  graphPrefix: "graph",
-  bookmarkNote: "Bookmark this page — your address is already set.",
-  graphPanelTitle: "DTEK GRAPH",
-  footer: "Data is collected from DTEK's public outage schedule.",
-  screenshotTitle: "Latest DTEK graph",
-  screenshotHint: "Captured by the collector on its most recent check.",
-  screenshotClickHint: "Click to enlarge",
-};
-
-const ru: Dict = {
+export const labels: Dict = {
   tagline: "Трекер отключений ДТЕК",
   todayTitle: "Сегодня (осталось)",
   tomorrowTitle: "Завтра",
@@ -150,16 +97,3 @@ const ru: Dict = {
   screenshotHint: "Снимок сделан сборщиком во время последней проверки.",
   screenshotClickHint: "Нажмите, чтобы увеличить",
 };
-
-const DICTS: Record<Lang, Dict> = { en, ru };
-
-export function normalizeLang(value: string | null | undefined): Lang {
-  // Russian is the default; English only when explicitly selected.
-  return value === "en" ? "en" : "ru";
-}
-
-export function t(lang: Lang): Dict {
-  return DICTS[lang] ?? DICTS.en;
-}
-
-export const LANGS: Lang[] = ["ru", "en"];

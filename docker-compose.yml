@@ -3,13 +3,45 @@ services:
     build: .
     image: dtektor
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
     environment:
-      # Local file DB persisted in the ./data volume below.
       DATABASE_URL: file:/app/data/dtektor.db
-      # Set in your shell/.env to protect the ingest endpoint.
-      INGEST_SECRET: ${INGEST_SECRET:-}
+      INGEST_SECRET: ${INGEST_SECRET:?Set INGEST_SECRET in .env}
+      SHOTS_DIR: /app/shots
+      ADDRESSES_FILE: /app/config/addresses.json
       NODE_ENV: production
     volumes:
-      - ./data:/app/data
+      - database:/app/data
+      - ./config/addresses.json:/app/config/addresses.json:ro
+      - screenshots:/app/shots:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/state').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+  collector:
+    build:
+      context: .
+      dockerfile: collector/Dockerfile
+    image: dtektor-collector
+    init: true
+    shm_size: 256mb
+    environment:
+      DTEKTOR_URL: http://dtektor:3000
+      INGEST_SECRET: ${INGEST_SECRET:?Set INGEST_SECRET in .env}
+      SHOTS_DIR: /app/shots
+      ADDRESSES_FILE: /app/config/addresses.json
+      COLLECT_INTERVAL_SECONDS: ${COLLECT_INTERVAL_SECONDS:-300}
+      DEADLINE_MS: ${DEADLINE_MS:-45000}
+    volumes:
+      - ./config/addresses.json:/app/config/addresses.json:ro
+      - screenshots:/app/shots
+    depends_on:
+      dtektor:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  database:
+  screenshots:

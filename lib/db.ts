@@ -397,6 +397,7 @@ export async function ingest(body: IngestBody): Promise<IngestResult> {
   const street = String(body?.address?.street ?? "").trim();
   const building = String(body?.address?.building ?? "").trim();
   if (!street || !building) throw new Error("address_required");
+  if (body.ok !== false && (!Array.isArray(body.today?.offWindows) || !Array.isArray(body.tomorrow?.offWindows))) throw new Error("incomplete_schedule");
   const label = body?.address?.label != null ? String(body.address.label) : null;
 
   const checkedDate = validDate(body?.checkedAt) ?? new Date();
@@ -418,6 +419,9 @@ export async function ingest(body: IngestBody): Promise<IngestResult> {
       raw,
     ],
   );
+
+  // Failed checks are audit records, never replacements for a valid schedule.
+  if (body.ok === false) return { address_id: addressId, changed: [] };
 
   const baseDay = kyivDay(checkedDate);
   const days: Array<[string, IngestDay | null | undefined]> = [

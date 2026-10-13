@@ -25,6 +25,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "address_required" }, { status: 400 });
   }
 
+  if (body?.ok !== false && (!Array.isArray(body?.today?.offWindows) || !Array.isArray(body?.tomorrow?.offWindows))) {
+    return NextResponse.json({ ok: false, error: "incomplete_schedule" }, { status: 400 });
+  }
+
   await ensureSchema();
 
   try {
