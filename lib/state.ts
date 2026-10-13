@@ -20,6 +20,8 @@ import { addDays, kyivDay, kyivMinutes, upcomingWindows } from "./time";
 export type { AddressInfo };
 
 export type DayInfo = {
+  /** Published empty schedules are different from missing/unpublished graphs. */
+  available: boolean;
   /** All planned off-windows for the day, e.g. ["08:00-11:00"]. */
   windows: string[];
   /** Windows that are still ahead of "now" (for today: the remainder). */
@@ -68,10 +70,12 @@ export async function readAddressState(address: AddressInfo): Promise<AddressSta
   return {
     address,
     today: {
+      available: todaySchedule !== null,
       windows: todayWindows,
       upcoming: upcomingWindows(todayWindows, nowMinutes),
     },
     tomorrow: {
+      available: tomorrowSchedule !== null,
       windows: tomorrowWindows,
       // Everything tomorrow is still ahead of us.
       upcoming: tomorrowWindows,

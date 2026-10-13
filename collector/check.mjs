@@ -268,8 +268,8 @@ try {
     updated: data.upd,
     graphUpdated: data.graphUpd,
     dayLabels: data.dates,
-    today: { offWindows: windows(todayT.classes.map(stateOf), todayT.hours), classes: todayT.classes },
-    tomorrow: { offWindows: windows(tomorrowT.classes.map(stateOf), tomorrowT.hours), classes: tomorrowT.classes },
+    today: { available: true, offWindows: windows(todayT.classes.map(stateOf), todayT.hours), classes: todayT.classes },
+    tomorrow: { available: !!data.tables[1], offWindows: windows(tomorrowT.classes.map(stateOf), tomorrowT.hours), classes: tomorrowT.classes },
   }
   out.today.upcoming = upcomingOnly(out.today.offWindows)
   // Tomorrow is entirely in the future — never filter it by today's clock.

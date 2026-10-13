@@ -1,9 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { after, type NextRequest, NextResponse } from "next/server";
 
 import { ensureSchema, ingest, type IngestBody } from "@/lib/db";
+import { flushPushQueue } from "@/lib/web-push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
  * POST collector payload.
@@ -33,6 +35,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await ingest(body as IngestBody);
+    after(() => flushPushQueue());
     return NextResponse.json({ ok: true, address_id: result.address_id });
   } catch {
     return NextResponse.json({ ok: false, error: "ingest_failed" }, { status: 500 });

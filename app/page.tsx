@@ -2,6 +2,7 @@
 import AutoRefresh from "@/components/AutoRefresh";
 import DashboardLayout from "@/components/DashboardLayout";
 import RefreshButton from "@/components/RefreshButton";
+import PushNotifications from "@/components/PushNotifications";
 import { labels as L, type Dict } from "@/lib/i18n";
 import { shotSlug } from "@/lib/shots";
 import { readDashboardSnapshot, type LiveDashboardColumn } from "@/lib/dashboard-snapshot";
@@ -31,7 +32,8 @@ export default async function Home() {
           </header>
         }
         refresh={
-          <div className="flex items-center gap-2">
+          <div className="space-y-4">
+            <PushNotifications />
             <RefreshButton label={L.refresh} />
           </div>
         }
@@ -62,12 +64,13 @@ function ScheduleCard({ col, L }: { col: DashboardColumn; L: Dict }) {
       <div className="mt-4 border-t border-slate-100 pt-4">
         {s ? (
           <div className="space-y-3">
-            <Row label={L.todayShort} windows={s.today.windows} empty={L.noOutagesToday} />
+            <Row label={L.todayShort} windows={s.today.windows} empty={s.today.available ? L.noOutagesToday : L.noData} available={s.today.available} />
             <div aria-hidden="true" className="border-t border-slate-100" />
             <Row
               label={L.tomorrowShort}
               windows={s.tomorrow.windows}
-              empty={L.noOutagesTomorrow}
+              empty={s.tomorrow.available ? L.noOutagesTomorrow : L.noData}
+              available={s.tomorrow.available}
             />
           </div>
         ) : (
@@ -97,7 +100,7 @@ function ScheduleCard({ col, L }: { col: DashboardColumn; L: Dict }) {
   );
 }
 
-function Row({ label, windows, empty }: { label: string; windows: string[]; empty: string }) {
+function Row({ label, windows, empty, available }: { label: string; windows: string[]; empty: string; available: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <span className="w-20 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -115,7 +118,7 @@ function Row({ label, windows, empty }: { label: string; windows: string[]; empt
           ))}
         </span>
       ) : (
-        <span className="text-sm font-semibold text-emerald-700">{empty} ✓</span>
+        <span className={`text-sm font-semibold ${available ? "text-emerald-700" : "text-slate-500"}`}>{empty}{available ? " ✓" : ""}</span>
       )}
     </div>
   );

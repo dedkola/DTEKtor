@@ -85,7 +85,7 @@ export const labels: Dict = {
   todayShort: "СЕГОДНЯ",
   tomorrowShort: "ЗАВТРА",
   noOutagesToday: "сегодня отключений нет",
-  noOutagesTomorrow: "нет данных",
+  noOutagesTomorrow: "завтра отключений нет",
   upToDate: "АКТУАЛЬНО",
   checkedPrefix: "Проверено:",
   dtekDataPrefix: "Данные ДТЕК",

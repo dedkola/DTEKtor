@@ -10,6 +10,9 @@ services:
     environment:
       DATABASE_URL: file:/app/data/dtektor.db
       INGEST_SECRET: ${INGEST_SECRET:?Set INGEST_SECRET in .env}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://detektor.tkweb.dev}
       SHOTS_DIR: /app/shots
       ADDRESSES_FILE: /app/config/addresses.json
       NODE_ENV: production

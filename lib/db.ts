@@ -9,18 +9,44 @@
 import { createClient, type Client, type InStatement } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
-
+import { readAddresses } from "../config/addresses.mjs";
 import {
-  addDays,
-  kyivDay,
-  normalizeWindows,
-  windowsToSlots,
-} from "./time";
+  scheduleChange,
+  scheduleContent,
+  scheduleMessage,
+  type ScheduleContent,
+  type ScheduleChange,
+} from "./schedule-change";
+
+import { addDays, kyivDay, windowsToSlots } from "./time";
 
 const DEFAULT_URL = "file:./data/dtektor.db";
 
 let _client: Client | null = null;
 let _schema: Promise<void> | null = null;
+let _write: Promise<unknown> = Promise.resolve();
+
+/** Interactive SQLite transactions use separate connections. Serialize local
+ * writes without holding a lock during push network calls; retry brief conflicts
+ * with other processes (e.g. a rolling server restart). */
+export function databaseWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = _write.then(async () => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (
+          attempt >= 5 ||
+          !String((error as { code?: string })?.code).startsWith("SQLITE_BUSY")
+        )
+          throw error;
+        await new Promise((resolve) => setTimeout(resolve, 25 * 2 ** attempt));
+      }
+    }
+  });
+  _write = result.catch(() => {});
+  return result;
+}
 
 function databaseUrl(): string {
   const url = process.env.DATABASE_URL?.trim();
@@ -58,10 +84,7 @@ export function db(): Client {
 export async function ensureSchema(): Promise<void> {
   if (!_schema) {
     _schema = (async () => {
-      const c = db();
-      for (const sql of SCHEMA) {
-        await c.execute(sql);
-      }
+      await databaseWrite(() => db().batch(SCHEMA, "write"));
     })().catch((err) => {
       // let a later request retry if this one failed
       _schema = null;
@@ -127,6 +150,35 @@ const SCHEMA: string[] = [
      reported_by TEXT,
      note TEXT
    )`,
+  `CREATE TABLE IF NOT EXISTS schedule_content (
+     address_id INTEGER NOT NULL,
+     day TEXT NOT NULL,
+     content TEXT NOT NULL,
+     checked_at TEXT NOT NULL,
+     PRIMARY KEY(address_id, day)
+   )`,
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     cookie_id TEXT NOT NULL,
+     endpoint TEXT NOT NULL UNIQUE,
+     p256dh TEXT NOT NULL,
+     auth TEXT NOT NULL,
+     vapid_public_key TEXT NOT NULL,
+     created_at TEXT NOT NULL,
+     last_test_at INTEGER NOT NULL DEFAULT 0
+   )`,
+  `CREATE TABLE IF NOT EXISTS push_deliveries (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     subscription_id INTEGER NOT NULL,
+     payload TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     attempts INTEGER NOT NULL DEFAULT 0,
+     next_attempt_at INTEGER NOT NULL DEFAULT 0,
+     locked_until INTEGER NOT NULL DEFAULT 0,
+     lease_token TEXT
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_push_cookie ON push_subscriptions(cookie_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_push_pending ON push_deliveries(next_attempt_at, locked_until)`,
   `CREATE INDEX IF NOT EXISTS idx_checks_address_time ON checks(address_id, checked_at)`,
   `CREATE INDEX IF NOT EXISTS idx_day_slots_address_day ON day_slots(address_id, day)`,
   `CREATE INDEX IF NOT EXISTS idx_checks_address_id ON checks(address_id)`,
@@ -156,7 +208,7 @@ async function all(sql: string, args: Args = []): Promise<Row[]> {
 }
 
 async function run(sql: string, args: Args = []): Promise<number> {
-  const rs = await db().execute({ sql, args });
+  const rs = await databaseWrite(() => db().execute({ sql, args }));
   return Number(rs.lastInsertRowid ?? 0);
 }
 
@@ -189,13 +241,15 @@ export async function upsertAddress(
   building: string,
   label?: string | null,
 ): Promise<number> {
-  const rows = await all(
-    `INSERT INTO addresses (street, building, label, created_at)
+  const rows = await databaseWrite(() =>
+    all(
+      `INSERT INTO addresses (street, building, label, created_at)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(street, building)
      DO UPDATE SET label = COALESCE(excluded.label, addresses.label)
      RETURNING id`,
-    [street, building, label ?? null, new Date().toISOString()],
+      [street, building, label ?? null, new Date().toISOString()],
+    ),
   );
   return asNumber(rows[0]?.id);
 }
@@ -306,13 +360,18 @@ export async function getDaySchedule(
   addressId: number,
   day: string,
 ): Promise<DaySchedule | null> {
-  const rows = await all(`SELECT windows, updated_at FROM day_schedule WHERE address_id = ? AND day = ?`, [
-    addressId,
-    day,
-  ]);
+  const rows = await all(
+    `SELECT s.windows, s.updated_at FROM day_schedule s
+    LEFT JOIN schedule_content c ON c.address_id = s.address_id AND c.day = s.day
+    WHERE s.address_id = ? AND s.day = ? AND (c.content IS NULL OR json_extract(c.content, '$.available') = 1)`,
+    [addressId, day],
+  );
   const r = rows[0];
   if (!r) return null;
-  return { windows: parseWindowsJson(r.windows), updatedAt: asString(r.updated_at) };
+  return {
+    windows: parseWindowsJson(r.windows),
+    updatedAt: asString(r.updated_at),
+  };
 }
 
 export type LatestCheck = {
@@ -368,6 +427,7 @@ export type IngestDay = {
   offWindows?: unknown;
   upcoming?: unknown;
   classes?: unknown;
+  available?: unknown;
 };
 
 export type IngestBody = {
@@ -397,83 +457,195 @@ export async function ingest(body: IngestBody): Promise<IngestResult> {
   const street = String(body?.address?.street ?? "").trim();
   const building = String(body?.address?.building ?? "").trim();
   if (!street || !building) throw new Error("address_required");
-  if (body.ok !== false && (!Array.isArray(body.today?.offWindows) || !Array.isArray(body.tomorrow?.offWindows))) throw new Error("incomplete_schedule");
-  const label = body?.address?.label != null ? String(body.address.label) : null;
+  if (
+    body.ok !== false &&
+    (!Array.isArray(body.today?.offWindows) ||
+      !Array.isArray(body.tomorrow?.offWindows))
+  )
+    throw new Error("incomplete_schedule");
+  const label =
+    body?.address?.label != null ? String(body.address.label) : null;
 
   const checkedDate = validDate(body?.checkedAt) ?? new Date();
   const checkedAtIso = checkedDate.toISOString();
 
-  const addressId = await upsertAddress(street, building, label);
+  await ensureSchema();
+  // A write transaction serializes comparisons and commits each notification
+  // together with its schedule. Collector retries cannot enqueue it twice.
+  return databaseWrite(async () => {
+    const tx = await db().transaction("write");
+    try {
+      const addressRows = await tx.execute({
+        sql: `INSERT INTO addresses (street, building, label, created_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(street, building) DO UPDATE SET label = COALESCE(excluded.label, addresses.label) RETURNING id`,
+        args: [street, building, label, new Date().toISOString()],
+      });
+      const addressId = asNumber(addressRows.rows[0].id);
+      const previousCheck = await tx.execute({
+        sql: `SELECT raw, checked_at FROM checks WHERE address_id = ? AND ok = 1 ORDER BY checked_at DESC, id DESC LIMIT 1`,
+        args: [addressId],
+      });
+      let previousBody: IngestBody | null = null;
+      try {
+        previousBody = JSON.parse(String(previousCheck.rows[0]?.raw ?? "null"));
+      } catch {
+        /* Legacy/truncated audit data. */
+      }
 
-  const raw = JSON.stringify(body).slice(0, 20000);
+      await tx.execute({
+        sql: `INSERT INTO checks (address_id, checked_at, dtek_updated, graph_updated, ok, raw)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [
+          addressId,
+          checkedAtIso,
+          asString(body?.updated),
+          asString(body?.graphUpdated),
+          body?.ok === false ? 0 : 1,
+          JSON.stringify(body).slice(0, 20000),
+        ],
+      });
 
-  await run(
-    `INSERT INTO checks (address_id, checked_at, dtek_updated, graph_updated, ok, raw)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      addressId,
-      checkedAtIso,
-      asString(body?.updated),
-      asString(body?.graphUpdated),
-      body?.ok === false ? 0 : 1,
-      raw,
-    ],
-  );
+      // Failed checks are audit records, never replacements for a valid schedule.
+      if (body.ok === false) {
+        await tx.commit();
+        return { address_id: addressId, changed: [] };
+      }
 
-  // Failed checks are audit records, never replacements for a valid schedule.
-  if (body.ok === false) return { address_id: addressId, changed: [] };
+      const baseDay = kyivDay(checkedDate);
+      const days: Array<[string, IngestDay | null | undefined]> = [
+        [baseDay, body?.today],
+        [addDays(baseDay, 1), body?.tomorrow],
+      ];
 
-  const baseDay = kyivDay(checkedDate);
-  const days: Array<[string, IngestDay | null | undefined]> = [
-    [baseDay, body?.today],
-    [addDays(baseDay, 1), body?.tomorrow],
-  ];
+      const changed: string[] = [];
+      const notifications: ScheduleChange[] = [];
+      const currentSchedules: Pick<ScheduleChange, "day" | "windows">[] = [];
+      const now = new Date().toISOString();
 
-  const changed: string[] = [];
-  const now = new Date().toISOString();
+      for (const [day, payload] of days) {
+        const content = scheduleContent(payload ?? {});
+        const windows = content.windows;
+        const afterJson = JSON.stringify(windows);
 
-  for (const [day, payload] of days) {
-    const windows = normalizeWindows(payload?.offWindows);
-    const afterJson = JSON.stringify(windows);
+        const existing = await tx.execute({
+          sql: `SELECT windows FROM day_schedule WHERE address_id = ? AND day = ?`,
+          args: [addressId, day],
+        });
+        const beforeJson =
+          existing.rows.length > 0
+            ? String(existing.rows[0].windows ?? "")
+            : null;
+        const snapshot = await tx.execute({
+          sql: `SELECT content, checked_at FROM schedule_content WHERE address_id = ? AND day = ?`,
+          args: [addressId, day],
+        });
+        // Ignore delayed/replayed checks rather than rolling back to old data.
+        const lastChecked =
+          snapshot.rows[0]?.checked_at ?? previousCheck.rows[0]?.checked_at;
+        if (lastChecked && checkedAtIso < String(lastChecked)) continue;
+        let before: ScheduleContent | null = snapshot.rows[0]
+          ? JSON.parse(String(snapshot.rows[0].content))
+          : null;
+        if (!before && beforeJson !== null) {
+          // Bootstrap content comparison from the old collector's saved payload.
+          const previousDate = validDate(previousBody?.checkedAt);
+          const previousDay = previousDate ? kyivDay(previousDate) : null;
+          const previousPayload =
+            day === previousDay
+              ? previousBody?.today
+              : previousDay && day === addDays(previousDay, 1)
+                ? previousBody?.tomorrow
+                : null;
+          before = previousPayload
+            ? scheduleContent(previousPayload)
+            : {
+                available: true,
+                windows: parseWindowsJson(beforeJson),
+                states: null,
+              };
+        }
+        // An absent graph is not an all-clear and never replaces published data.
+        if (!content.available && before?.available) {
+          currentSchedules.push({ day, windows: before.windows });
+          continue;
+        }
+        const kind = scheduleChange(before, content);
+        await tx.execute({
+          sql: `INSERT INTO schedule_content (address_id, day, content, checked_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(address_id, day) DO UPDATE SET content = excluded.content, checked_at = excluded.checked_at`,
+          args: [addressId, day, JSON.stringify(content), checkedAtIso],
+        });
+        if (!content.available) continue;
+        currentSchedules.push({ day, windows });
+        if (kind) notifications.push({ day, kind, windows });
 
-    const existing = await all(
-      `SELECT windows FROM day_schedule WHERE address_id = ? AND day = ?`,
-      [addressId, day],
-    );
-    const beforeJson = existing.length > 0 ? String(existing[0].windows ?? "") : null;
+        await tx.execute({
+          sql: `INSERT INTO day_schedule (address_id, day, windows, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(address_id, day)
+         DO UPDATE SET windows = excluded.windows, updated_at = excluded.updated_at`,
+          args: [addressId, day, afterJson, now],
+        });
 
-    await run(
-      `INSERT INTO day_schedule (address_id, day, windows, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(address_id, day)
-       DO UPDATE SET windows = excluded.windows, updated_at = excluded.updated_at`,
-      [addressId, day, afterJson, now],
-    );
+        if (beforeJson !== null && beforeJson !== afterJson) {
+          await tx.execute({
+            sql: `INSERT INTO schedule_changes (address_id, day, before, after, detected_at)
+           VALUES (?, ?, ?, ?, ?)`,
+            args: [addressId, day, beforeJson, afterJson, now],
+          });
+          changed.push(day);
+        }
 
-    if (beforeJson !== null && beforeJson !== afterJson) {
-      await run(
-        `INSERT INTO schedule_changes (address_id, day, before, after, detected_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [addressId, day, beforeJson, afterJson, now],
-      );
-      changed.push(day);
+        // Rebuild the planned slots for this day atomically.
+        const slots = windowsToSlots(windows);
+        const stmts: InStatement[] = [
+          {
+            sql: `DELETE FROM day_slots WHERE address_id = ? AND day = ? AND source = 'planned'`,
+            args: [addressId, day],
+          },
+          ...slots.map((s) => ({
+            sql: `INSERT OR REPLACE INTO day_slots (address_id, day, slot, state, source)
+                VALUES (?, ?, ?, ?, 'planned')`,
+            args: [addressId, day, s.slot, s.state] as Args,
+          })),
+        ];
+        await tx.batch(stmts);
+      }
+
+      if (
+        notifications.length &&
+        readAddresses().some(
+          (address) =>
+            address.street === street && address.building === building,
+        )
+      ) {
+        // A newer revision supersedes unsent/retrying notifications for this
+        // address, so an offline browser does not get an outdated schedule.
+        await tx.execute({
+          sql: `DELETE FROM push_deliveries WHERE json_extract(payload, '$.tag') = ? AND locked_until <= ?`,
+          args: [`dtektor-schedule-${addressId}`, Date.now()],
+        });
+        await tx.execute({
+          sql: `INSERT INTO push_deliveries (subscription_id, payload, created_at)
+        SELECT id, ?, ? FROM push_subscriptions`,
+          args: [
+            JSON.stringify(
+              scheduleMessage(
+                `${street} ${building}`,
+                addressId,
+                notifications,
+                new Date(),
+                currentSchedules,
+              ),
+            ),
+            Date.now(),
+          ],
+        });
+      }
+      await tx.commit();
+      return { address_id: addressId, changed };
+    } finally {
+      tx.close();
     }
-
-    // Rebuild the planned slots for this day atomically.
-    const slots = windowsToSlots(windows);
-    const stmts: InStatement[] = [
-      {
-        sql: `DELETE FROM day_slots WHERE address_id = ? AND day = ? AND source = 'planned'`,
-        args: [addressId, day],
-      },
-      ...slots.map((s) => ({
-        sql: `INSERT OR REPLACE INTO day_slots (address_id, day, slot, state, source)
-              VALUES (?, ?, ?, ?, 'planned')`,
-        args: [addressId, day, s.slot, s.state] as Args,
-      })),
-    ];
-    await db().batch(stmts, "write");
-  }
-
-  return { address_id: addressId, changed };
+  });
 }
