@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: "DTEKtor — график отключений ДТЕК",
   description:
     "График отключений ДТЕК по вашему адресу на сегодня и завтра.",
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -80,6 +80,60 @@ producing an unidentified build.
 See [.env.example](.env.example) for database and storage overrides. Local data
 lives in `data/`; Docker uses named volumes.
 
+## Web Push notifications
+
+Web Push uses the existing dashboard server, collector and libSQL/SQLite database.
+Subscriptions and pending deliveries persist across restarts. No additional host,
+database, cron job or notification service account is needed.
+
+Generate a VAPID key pair **once on the dashboard host**:
+
+```bash
+# Next.js / the existing systemd deployment (.env.local):
+npm run push:keys
+
+# Docker Compose (.env), instead:
+npm run push:keys -- --file .env
+docker compose up -d
+```
+
+For systemd, restart the dashboard after generating credentials. The command saves
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` to the selected environment
+file without printing secrets. It preserves other settings and refuses to replace
+an existing key pair. Use an HTTPS site URL or a `mailto:` contact as the subject.
+For remote hosting, provide these same three values as runtime environment variables;
+the browser gets only the public key from `/api/push`. Keep the environment file out
+of Git and backups of the private key secure. Keep the same keys between deployments.
+
+Open the dashboard over HTTPS (localhost also works), click **Включить** under
+**Уведомления**, and grant permission. **Проверить уведомление** queues a test for
+that browser; tests are limited to one per minute. **Отключить** removes that browser's
+subscription and pending deliveries. Permission is requested only after clicking.
+On iPhone/iPad, open the site in Safari and use **Share → Add to Home Screen** first,
+then enable notifications from the installed app. A manifest and app icons are included.
+The service worker handles push and notification clicks without caching schedules.
+
+All configured dashboard addresses are monitored. A successful collector submission
+queues a notification when a schedule is first published or its outage windows/graph
+cells change, including tomorrow's first publication with no planned outages.
+An unpublished tomorrow graph is kept separate from a published all-clear. Missing
+graphs and failed checks preserve the last published schedule; clock ticks, update
+timestamps, screenshots captured again, midnight rollover of an unchanged schedule,
+and repeated submissions do not generate alerts. Dates use `Europe/Kyiv`.
+
+Schedules and notification jobs commit in one transaction. The server sends after
+the ingest response, so push delivery does not delay the collector. Transient failures
+retry on later submissions (including unchanged schedules), with backoff and up to
+five attempts; jobs older than 24 hours are discarded. Expired subscriptions (404/410)
+are removed automatically. Delivery claims prevent parallel workers from sending the
+same queued job; like other network delivery systems, a process crash after a push
+service accepts a message can cause a retry. A stable notification tag replaces the
+previous notification for that address and alerts again for changes. New revisions
+replace older unsent/retrying messages for the same address, keeping offline delivery
+current. Browser/OS settings may delay or block display.
+Current endpoint validation supports Chromium/Edge (FCM), Firefox and Safari push
+services. Outbound HTTPS to those services must be available from the dashboard host.
+
 ## Checks
 
 ```bash

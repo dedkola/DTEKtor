@@ -67,7 +67,8 @@ export function parseWindow(value: string): ParsedWindow | null {
   const m = WINDOW_RE.exec(s);
   if (!m) return null;
   const start = hhmmToMinutes(m[1]);
-  const end = hhmmToMinutes(m[2]);
+  // DTEK's final hour ends at 24:00; only an end time may use it.
+  const end = m[2] === "24:00" ? 1440 : hhmmToMinutes(m[2]);
   if (start == null || end == null || end <= start) return null;
   return { start, end, text: `${minutesToHHMM(start)}-${minutesToHHMM(end)}` };
 }

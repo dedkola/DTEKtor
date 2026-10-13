@@ -8,13 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test tests/*.test.ts && node --test collector/worker.test.mjs scripts/dev.test.mjs",
-    "dev:web": "next dev"
+    "dev:web": "next dev",
+    "push:keys": "node scripts/generate-vapid.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@next/env": "16.4.0",
@@ -22,6 +24,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
