@@ -78,8 +78,11 @@ visitor.
 ```
 
 - The **web app** serves pages and the read/write API.
-- The **collector worker** (separate; you provide it) checks DTEK's public
+- The **collector worker** runs separately, checks DTEK's public
   schedule and pushes results to `POST /api/ingest`.
+- The deployed Playwright collector source and its popup-safe screenshot flow
+  are tracked in [`collector/`](collector/README.md). Its existing server wrapper
+  handles scheduling and ingestion.
 - The **database** is libSQL: a local file in development, Turso in production.
   Both are reached through the same `@libsql/client` driver.
 
