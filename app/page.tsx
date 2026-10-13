@@ -128,13 +128,13 @@ async function GraphPanel({ col, L }: { col: DashboardColumn; L: Dict }) {
   return (
     <section aria-label={`${L.graphPanelTitle} — ${address}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {slug && available ? (
-        <a href={`/api/screenshot/${slug}`} target="_blank" rel="noreferrer" className="block">
+        <div className="block">
           <img
             src={`/api/screenshot/${slug}`}
             alt={`График отключений ДТЕК — ${address}`}
-            className="block w-full bg-slate-50 transition hover:opacity-90"
+            className="block w-full bg-slate-50"
           />
-        </a>
+        </div>
       ) : (
         <div className="p-6 text-sm text-slate-400">{L.noData}</div>
       )}
