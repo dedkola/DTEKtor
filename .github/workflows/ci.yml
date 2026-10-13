@@ -86,3 +86,33 @@ jobs:
       - name: Remove disposable CI resources
         if: always()
         run: docker compose down --volumes --remove-orphans
+
+  production:
+    name: Verify production deployment
+    needs: [code, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: ${{ vars.DTEKTOR_PUBLIC_URL || 'https://detektor.tkweb.dev' }}
+    concurrency:
+      group: production-verification
+      cancel-in-progress: true
+    env:
+      EXPECTED_SHA: ${{ github.sha }}
+      DTEKTOR_URL: ${{ vars.DTEKTOR_PUBLIC_URL || 'https://detektor.tkweb.dev' }}
+      REQUIRE_HTTPS: 'true'
+      DEPLOY_WAIT_SECONDS: '600'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+      - name: Wait for this commit and verify the public application
+        run: node .github/scripts/verify-production.mjs

@@ -76,22 +76,32 @@ npm run build
 ```
 
 GitHub CI runs tests, lint, both Docker builds and a container smoke test using
-synthetic schedules. It does not contact DTEK. The manual production workflow
-checks systemd status, running build SHA, readiness and collection freshness.
-These workflows do not deploy the application.
+synthetic schedules. On pushes to `main`, successful CI is followed by
+**Verify production deployment**, recorded in GitHub's `production` environment
+with a link to the live app. Pull requests do not run production checks.
 
-Production verification requires an unprivileged self-hosted runner on the
-deployment server with labels `self-hosted`, `linux`, `x64`, and
-`dtektor-verification` (runner 2.327.1+). Keep its workspace separate from the
-application checkout. Stamp the deployed build with
-`DTEKTOR_BUILD_SHA="$(git rev-parse HEAD)" npm run build`; Docker builds accept
-the same SHA through `--build-arg DTEKTOR_BUILD_SHA=...`.
+The production job uses a GitHub-hosted runner and public HTTPS. It waits up to
+ten minutes for the exact commit SHA to appear at `/api/health`, then checks the
+dashboard, database/configuration readiness, the release's complete address list,
+fresh successful collection for every configured address, and every graph screenshot. Unavailable screenshots, stale
+collection, an older build or a failed deployment produce a failed job. No
+self-hosted runner, SSH access or deployment secrets are required for verification.
 
-Run [Verify production](https://github.com/dedkola/DTEKtor/actions/workflows/verify-production.yml)
-on `main` with the full deployed SHA. The default expects the selected `main`
-revision. Optional repository variables `DTEKTOR_VERIFY_URL` and
-`DTEKTOR_PUBLIC_URL` override the local URL and enable an additional public
-HTTPS check. `/api/health` reports readiness and collection separately.
+The server's existing systemd timer still deploys `main` independently; these
+workflows verify the result and do not install releases or gate that timer.
+Ensure its build command stamps the source revision:
+`DTEKTOR_BUILD_SHA="$REMOTE" npm run build`. After restart, run the verifier with
+`EXPECTED_SHA="$REMOTE" DTEKTOR_URL=http://127.0.0.1:3000` before marking a release
+successful. Docker builds accept the SHA via `--build-arg DTEKTOR_BUILD_SHA=...`.
+
+The default public URL is `https://detektor.tkweb.dev`. Repository variable
+`DTEKTOR_PUBLIC_URL` can override it. The manual
+[Verify production](https://github.com/dedkola/DTEKtor/actions/workflows/verify-production.yml)
+workflow uses the same hosted checks on `main`, with an optional full expected
+commit SHA. It does not create a deployment record for a manually selected older
+revision. `/api/health` reports the running build and collection freshness without
+modifying schedules. These checks confirm current freshness, not a new scrape
+since the release was deployed.
 
 ## Documentation
 

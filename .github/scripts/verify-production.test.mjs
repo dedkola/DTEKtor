@@ -45,3 +45,31 @@ test('bounded polling retries transient failures and fails at deadline', async (
   await assert.rejects(poll(async () => { throw new Error('offline'); }, 10000, clock), /offline/);
   assert.equal(time, 10000);
 });
+
+test('screenshots must be available and valid PNGs for every address', async () => {
+  const { verifyScreenshots } = await import('./verify-production.mjs');
+  const png = new Uint8Array([137,80,78,71,13,10,26,10,1]);
+  const calls = [];
+  await verifyScreenshots(healthy(), 'https://example.test', async url => {
+    calls.push(url.pathname);
+    return new Response(png, { headers: { 'content-type': 'image/png' } });
+  });
+  assert.deepEqual(calls, ['/api/screenshot/first', '/api/screenshot/second']);
+  for (const response of [
+    new Response('missing', { status: 404 }),
+    new Response('html', { headers: { 'content-type': 'text/html' } }),
+    new Response('bad image', { headers: { 'content-type': 'image/png' } }),
+  ]) {
+    await assert.rejects(verifyScreenshots(healthy(), 'https://example.test', async url =>
+      url.pathname.endsWith('/second') ? response : new Response(png, { headers: { 'content-type': 'image/png' } })));
+  }
+});
+
+
+test('production must report the complete address configuration for the release', () => {
+  validateCollection(healthy(), now, ['first', 'second']);
+  const missing = healthy();
+  missing.collection.addresses.pop();
+  assert.throws(() => validateCollection(missing, now, ['first', 'second']), /configuration/);
+  assert.throws(() => validateCollection(healthy(), now, ['first', 'other']), /configuration/);
+});
