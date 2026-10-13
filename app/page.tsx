@@ -3,18 +3,19 @@ import AutoRefresh from "@/components/AutoRefresh";
 import DashboardLayout from "@/components/DashboardLayout";
 import RefreshButton from "@/components/RefreshButton";
 import { labels as L, type Dict } from "@/lib/i18n";
-import { hasShot, shotSlug } from "@/lib/shots";
-import { readDashboard, type DashboardColumn } from "@/lib/state";
+import { shotSlug } from "@/lib/shots";
+import { readDashboardSnapshot, type LiveDashboardColumn } from "@/lib/dashboard-snapshot";
+import { type DashboardColumn } from "@/lib/state";
 import { KYIV_TZ } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const columns = await readDashboard();
+  const { columns, revision } = await readDashboardSnapshot();
 
   return (
     <main className="w-full px-4 py-4 sm:px-6 sm:py-6">
-      <AutoRefresh seconds={60} />
+      <AutoRefresh revision={revision} />
 
       <DashboardLayout
         entries={await Promise.all(columns.map(async col => ({
@@ -119,18 +120,19 @@ function Row({ label, windows, empty }: { label: string; windows: string[]; empt
   );
 }
 
-/** Wide panel holding the cropped DTEK graph capture (click to enlarge). */
-async function GraphPanel({ col, L }: { col: DashboardColumn; L: Dict }) {
+/** Wide panel holding the cropped DTEK graph capture. */
+async function GraphPanel({ col, L }: { col: LiveDashboardColumn; L: Dict }) {
   const slug = shotSlug(col.street, col.building);
   const address = `${col.street} ${col.building}`;
-  const available = slug ? await hasShot(slug) : false;
+  const available = col.screenshotVersion !== null;
+  const url = `/api/screenshot/${slug}?v=${encodeURIComponent(col.screenshotVersion ?? "")}`;
 
   return (
     <section aria-label={`${L.graphPanelTitle} — ${address}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {slug && available ? (
         <div className="block">
           <img
-            src={`/api/screenshot/${slug}`}
+            src={url}
             alt={`График отключений ДТЕК — ${address}`}
             className="block w-full bg-slate-50"
           />
