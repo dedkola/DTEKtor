@@ -186,22 +186,24 @@ try {
   await page.waitForSelector('table', { timeout: Math.min(9000, left()) })
   await page.waitForTimeout(600)
 
-  // Best-effort: capture just the graph area (heading + day tabs + table + legend),
-  // cropped to the top of the page so we don't keep the empty space below.
+  // Keep the selected address, outage notice, graph and legend. Crop away the
+  // site navigation, breadcrumbs and page title above the address fields.
   try {
     const grid = page.locator('table').first()
     await dismissPopups(page)
-    await grid.scrollIntoViewIfNeeded()
+    await page.evaluate(() => window.scrollTo(0, 0))
     await page.waitForTimeout(300)
     const shot = process.env.SHOT ?? './data/shots/shot.png'
     let image
     for (let attempt = 0; attempt < 3; attempt++) {
       await dismissPopups(page)
       const box = await grid.boundingBox()
+      const addressBox = await page.locator('#discon_form .discon-inputs').boundingBox()
+      if (!box || !addressBox) throw new Error('Screenshot crop bounds not found; screenshot not replaced')
       const vw = page.viewportSize()?.width ?? 1366
-      const options = box
-        ? { clip: { x: 0, y: 0, width: vw, height: Math.min(Math.ceil(box.y + box.height + 90), 1400) } }
-        : { fullPage: true }
+      const top = Math.max(0, Math.floor(addressBox.y) - 8)
+      const bottom = Math.ceil(box.y + box.height + 60)
+      const options = { clip: { x: 0, y: top, width: vw, height: Math.min(bottom - top, 1400) } }
       const candidate = await page.screenshot({ ...options, animations: 'disabled' })
       // Catch popups that opened while the screenshot was being rendered.
       if (!(await page.locator(POPUP_OPEN).count()) && !(await page.locator(POPUP_CLOSE).count())) {
