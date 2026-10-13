@@ -17,15 +17,15 @@ concurrency:
 
 jobs:
   verify:
-    name: Read-only systemd and application checks
+    name: Read-only public application checks
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, linux, x64, dtektor-verification]
-    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
-      DTEKTOR_URL: ${{ vars.DTEKTOR_VERIFY_URL || 'http://127.0.0.1:3000' }}
-      PUBLIC_URL: ${{ vars.DTEKTOR_PUBLIC_URL }}
-      SYSTEMD_SERVICE: dtektor.service
+      DTEKTOR_URL: ${{ vars.DTEKTOR_PUBLIC_URL || 'https://detektor.tkweb.dev' }}
+      REQUIRE_HTTPS: 'true'
+      DEPLOY_WAIT_SECONDS: '600'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -33,5 +33,5 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
-      - name: Verify running release, readiness and collection
+      - name: Verify running release, readiness, collection and screenshots
         run: node .github/scripts/verify-production.mjs
