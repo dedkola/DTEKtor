@@ -9,10 +9,28 @@ export function pushBrowserId(request: NextRequest) {
 }
 
 export function sameOriginPushRequest(request: NextRequest) {
-  return (
-    request.headers.get("origin") === request.nextUrl.origin &&
-    request.headers.get("sec-fetch-site") !== "cross-site"
-  );
+  const origin = request.headers.get("origin");
+  if (!origin || request.headers.get("sec-fetch-site") === "cross-site")
+    return false;
+
+  // next start constructs nextUrl using its listening hostname (localhost),
+  // even when a reverse proxy preserves the public Host header. Compare against
+  // that incoming host and the proxy's original protocol instead.
+  const host = request.headers.get("host") ?? request.nextUrl.host;
+  const protocol =
+    request.headers.get("x-forwarded-proto")?.split(",")[0].trim() ??
+    request.nextUrl.protocol.slice(0, -1);
+  if (
+    !host ||
+    /[\/\\?#@,\s]/.test(host) ||
+    !["http", "https"].includes(protocol)
+  )
+    return false;
+  try {
+    return origin === new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return false;
+  }
 }
 
 export function pushResponse(body: unknown, status = 200, cookieId?: string) {
