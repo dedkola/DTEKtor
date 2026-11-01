@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
-    "next": "16.4.0",
+    "next": "16.4.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "web-push": "^3.6.7"
